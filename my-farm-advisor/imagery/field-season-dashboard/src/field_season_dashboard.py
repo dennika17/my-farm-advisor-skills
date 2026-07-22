@@ -731,7 +731,7 @@ def build_dashboard(
     
     ax.set_ylabel("Cumulative GDD (°F·days)", fontsize=10, fontweight="bold")
     ax.set_title(
-        "4. Cumulative Growing Degree Days  (base 50°F)",
+        "4. Cumulative Growing Degree Days After Last Spring Frost",
         fontsize=11,
         fontweight="bold",
         loc="left",

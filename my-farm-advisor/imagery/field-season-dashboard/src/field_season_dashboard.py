@@ -202,12 +202,20 @@ def extract_ndvi(sentinel_dir: Path, boundary_path: Path) -> pd.DataFrame:
     return pd.DataFrame(records).sort_values("doy").reset_index(drop=True)
 
 
+def c_to_f(c: float) -> float:
+    """Convert Celsius to Fahrenheit."""
+    return c * 9.0 / 5.0 + 32.0
+
+
 def load_weather(weather_path: Path, year: int) -> pd.DataFrame:
-    """Load and filter daily weather for the target year."""
+    """Load and filter daily weather for the target year, converting temps to Fahrenheit."""
     weather = pd.read_csv(weather_path, parse_dates=["date"])
     weather["year"] = weather["date"].dt.year
     weather = weather[weather["year"] == year].copy()
     weather["doy"] = weather["date"].dt.dayofyear
+    # Convert temperatures from Celsius to Fahrenheit
+    for col in ["T2M", "T2M_MIN", "T2M_MAX"]:
+        weather[col] = weather[col].apply(c_to_f)
     return weather.sort_values("doy").reset_index(drop=True)
 
 
@@ -215,11 +223,12 @@ def load_weather(weather_path: Path, year: int) -> pd.DataFrame:
 # Metrics
 # ---------------------------------------------------------------------------
 
-def calculate_gdd(weather: pd.DataFrame, base_temp: float) -> pd.DataFrame:
-    """Calculate daily and cumulative GDD."""
+def calculate_gdd(weather: pd.DataFrame, base_temp_c: float) -> pd.DataFrame:
+    """Calculate daily and cumulative GDD using Fahrenheit."""
     weather = weather.copy()
+    base_temp_f = c_to_f(base_temp_c)  # Convert base temp to Fahrenheit
     t_avg = (weather["T2M_MIN"] + weather["T2M_MAX"]) / 2.0
-    weather["gdd"] = np.maximum(0, t_avg - base_temp)
+    weather["gdd"] = np.maximum(0, t_avg - base_temp_f)
     weather["gdd_cumulative"] = weather["gdd"].cumsum()
     return weather
 
@@ -284,21 +293,21 @@ def detect_events(
         "doy": int(max_temp_row["doy"]),
         "type": "hot_day",
         "value": float(max_temp_row["T2M_MAX"]),
-        "label": f"Hottest: {max_temp_row['T2M_MAX']:.1f}°C",
+        "label": f"Hottest: {max_temp_row['T2M_MAX']:.1f}°F",
         "panel": 2,
         "score": float(max_temp_row["T2M_MAX"]) * 2,
     })
 
-    # Frost risk during growing season (T2M_MIN < 2°C)
+    # Frost risk during growing season (T2M_MIN < 36°F)
     if not gs.empty:
-        frost = gs[gs["T2M_MIN"] < 2]
+        frost = gs[gs["T2M_MIN"] < 36]
         if not frost.empty:
             frost_row = frost.loc[frost["T2M_MIN"].idxmin()]
             events.append({
                 "doy": int(frost_row["doy"]),
                 "type": "frost",
                 "value": float(frost_row["T2M_MIN"]),
-                "label": f"Late frost: {frost_row['T2M_MIN']:.1f}°C",
+                "label": f"Late frost: {frost_row['T2M_MIN']:.1f}°F",
                 "panel": 2,
                 "score": 50.0,  # High agronomic relevance
             })
@@ -316,17 +325,20 @@ def add_event_annotations(
     weather: pd.DataFrame,
     ndvi: pd.DataFrame,
 ) -> None:
-    """Add concise event annotations to the appropriate panels."""
+    """Add concise event annotations to the appropriate panels, keeping all inside."""
     # Select top 5 events by score
     top_events = sorted(events, key=lambda e: e["score"], reverse=True)[:5]
-
-    # Track annotation positions to reduce overlap
-    used_positions: dict[int, list[tuple[float, float]]] = {0: [], 1: [], 2: []}
 
     for i, event in enumerate(top_events):
         panel_idx = event["panel"]
         ax = axes[panel_idx]
         doy = event["doy"]
+
+        # Get axis bounds
+        x_min, x_max = ax.get_xlim()
+        y_min, y_max = ax.get_ylim()
+        x_range = x_max - x_min
+        y_range = y_max - y_min
 
         # Get y position based on panel and event type
         if panel_idx == 0:  # NDVI
@@ -335,8 +347,8 @@ def add_event_annotations(
                 y_pos = float(ndvi_match.iloc[0]["ndvi"])
             else:
                 y_pos = float(ndvi["ndvi"].max())
-            y_range = float(ndvi["ndvi"].max() - ndvi["ndvi"].min())
-            y_offset = y_range * 0.15 if i % 2 == 0 else -y_range * 0.15
+            # Keep text within 15-85% of y range
+            text_y = y_min + y_range * (0.15 + (i % 3) * 0.35)
 
         elif panel_idx == 1:  # Precipitation
             precip_match = weather[weather["doy"] == doy]
@@ -344,7 +356,8 @@ def add_event_annotations(
                 y_pos = float(precip_match.iloc[0]["PRECTOTCORR"])
             else:
                 y_pos = float(weather["PRECTOTCORR"].max()) * 0.8
-            y_offset = float(weather["PRECTOTCORR"].max()) * 0.12
+            # Keep text in upper portion
+            text_y = y_min + y_range * (0.55 + (i % 2) * 0.25)
 
         elif panel_idx == 2:  # Temperature
             temp_match = weather[weather["doy"] == doy]
@@ -352,15 +365,26 @@ def add_event_annotations(
                 y_pos = float(temp_match.iloc[0]["T2M_MAX"])
             else:
                 y_pos = float(weather["T2M_MAX"].max())
-            y_offset = 2.5 if i % 2 == 0 else -2.5
+            # Keep text in upper-middle area
+            text_y = y_min + y_range * (0.20 + (i % 3) * 0.30)
 
         else:
             continue
 
-        # Adjust text position to avoid overlap
-        text_y = y_pos + y_offset
-        x_offset = 20 if doy < 300 else -20
-        ha = "left" if doy < 300 else "right"
+        # Calculate safe x position for text
+        # Use a margin of 8% from edges
+        margin = x_range * 0.08
+        if doy < x_min + x_range * 0.5:
+            # Event is in left half: text goes to the right
+            text_x = min(doy + x_range * 0.12, x_max - margin)
+            ha = "left"
+        else:
+            # Event is in right half: text goes to the left
+            text_x = max(doy - x_range * 0.12, x_min + margin)
+            ha = "right"
+
+        # Ensure y text stays within bounds
+        text_y = max(y_min + y_range * 0.08, min(text_y, y_max - y_range * 0.08))
 
         # Choose color based on event type
         if event["type"] == "frost":
@@ -379,7 +403,7 @@ def add_event_annotations(
         ax.annotate(
             event["label"],
             xy=(doy, y_pos),
-            xytext=(doy + x_offset, text_y),
+            xytext=(text_x, text_y),
             fontsize=8,
             fontweight="bold",
             color=color,
@@ -541,14 +565,14 @@ def build_dashboard(
         label="Daily mean",
         zorder=3,
     )
-    # Threshold lines
+    # Threshold lines (50°F and 68°F)
     ax.axhline(
-        10, color="green", linestyle="--", alpha=0.4, linewidth=0.8, zorder=1
+        50, color="green", linestyle="--", alpha=0.4, linewidth=0.8, zorder=1
     )
     ax.axhline(
-        20, color="darkgreen", linestyle="--", alpha=0.4, linewidth=0.8, zorder=1
+        68, color="darkgreen", linestyle="--", alpha=0.4, linewidth=0.8, zorder=1
     )
-    ax.set_ylabel("Temperature (°C)", fontsize=10, fontweight="bold")
+    ax.set_ylabel("Temperature (°F)", fontsize=10, fontweight="bold")
     ax.set_title(
         "Temperature Extremes",
         fontsize=11,
@@ -567,8 +591,8 @@ def build_dashboard(
         linewidth=2.2,
         zorder=3,
     )
-    # Threshold lines
-    for threshold in [500, 1000]:
+    # Threshold lines (900 and 1800 °F·days)
+    for threshold in [900, 1800]:
         ax.axhline(
             threshold,
             color="gray",
@@ -586,9 +610,9 @@ def build_dashboard(
             va="center",
             ha="left",
         )
-    ax.set_ylabel("Cumulative GDD (°C·days)", fontsize=10, fontweight="bold")
+    ax.set_ylabel("Cumulative GDD (°F·days)", fontsize=10, fontweight="bold")
     ax.set_title(
-        f"Cumulative Growing Degree Days  (base {base_temp}°C)",
+        f"Cumulative Growing Degree Days  (base {c_to_f(base_temp):.0f}°F)",
         fontsize=11,
         fontweight="bold",
         loc="left",

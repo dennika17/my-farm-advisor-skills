@@ -243,14 +243,29 @@ def load_weather(weather_path: Path, year: int) -> pd.DataFrame:
 # Metrics
 # ---------------------------------------------------------------------------
 
-def calculate_gdd(weather: pd.DataFrame, base_temp_c: float) -> pd.DataFrame:
-    """Calculate daily and cumulative GDD using Fahrenheit."""
+def calculate_gdd(weather: pd.DataFrame, base_temp_c: float, last_frost_doy: int) -> pd.DataFrame:
+    """Calculate daily and cumulative GDD using Fahrenheit, starting after last frost."""
     weather = weather.copy()
     base_temp_f = c_to_f(base_temp_c)  # Convert base temp to Fahrenheit
     t_avg = (weather["T2M_MIN"] + weather["T2M_MAX"]) / 2.0
     weather["gdd"] = np.maximum(0, t_avg - base_temp_f)
+    
+    # Set GDD to 0 before and on last frost date
+    weather.loc[weather["doy"] <= last_frost_doy, "gdd"] = 0
+    
+    # Recalculate cumulative from 0
     weather["gdd_cumulative"] = weather["gdd"].cumsum()
     return weather
+
+
+def detect_last_frost(weather: pd.DataFrame, frost_threshold_f: float = 36.0, spring_cutoff_doy: int = 180) -> int:
+    """Detect the last spring frost date (latest DOY before summer with T2M_MIN below threshold)."""
+    # Only look at days before summer cutoff (July 1)
+    spring_weather = weather[weather["doy"] <= spring_cutoff_doy]
+    frost_days = spring_weather[spring_weather["T2M_MIN"] < frost_threshold_f]
+    if frost_days.empty:
+        return 0  # No spring frost detected
+    return int(frost_days["doy"].max())
 
 
 # ---------------------------------------------------------------------------
@@ -258,7 +273,7 @@ def calculate_gdd(weather: pd.DataFrame, base_temp_c: float) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 
 def detect_events(
-    weather: pd.DataFrame, ndvi: pd.DataFrame, gs_start: int, gs_end: int
+    weather: pd.DataFrame, ndvi: pd.DataFrame, gs_start: int, gs_end: int, last_frost_doy: int = 0
 ) -> list[dict]:
     """Detect notable weather and NDVI events."""
     events: list[dict] = []
@@ -318,19 +333,17 @@ def detect_events(
         "score": float(max_temp_row["T2M_MAX"]) * 2,
     })
 
-    # Frost risk during growing season (T2M_MIN < 36°F)
-    if not gs.empty:
-        frost = gs[gs["T2M_MIN"] < 36]
-        if not frost.empty:
-            frost_row = frost.loc[frost["T2M_MIN"].idxmin()]
-            events.append({
-                "doy": int(frost_row["doy"]),
-                "type": "frost",
-                "value": float(frost_row["T2M_MIN"]),
-                "label": f"Late frost: {frost_row['T2M_MIN']:.1f}°F",
-                "panel": 2,
-                "score": 50.0,  # High agronomic relevance
-            })
+    # Frost risk: report the last frost date if detected
+    if last_frost_doy > 0:
+        frost_row = weather[weather["doy"] == last_frost_doy].iloc[0]
+        events.append({
+            "doy": last_frost_doy,
+            "type": "frost",
+            "value": float(frost_row["T2M_MIN"]),
+            "label": f"Last frost: {frost_row['T2M_MIN']:.1f}°F",
+            "panel": 2,
+            "score": 50.0,  # High agronomic relevance
+        })
 
     return events
 
@@ -777,11 +790,15 @@ def main(argv: list[str] | None = None) -> int:
     base_temp = args.gdd_base_temp or CROP_GDD_BASE.get(crop, CROP_GDD_BASE["default"])
     print(f"Crop: {crop}, GDD base temp: {base_temp}°C")
 
-    # Calculate GDD
-    weather = calculate_gdd(weather, base_temp)
+    # Detect last frost date
+    last_frost_doy = detect_last_frost(weather)
+    print(f"Last frost: DOY {last_frost_doy} ({'No frost detected' if last_frost_doy == 0 else 'Frost threshold 36°F'})")
+
+    # Calculate GDD starting after last frost
+    weather = calculate_gdd(weather, base_temp, last_frost_doy)
 
     # Detect events
-    events = detect_events(weather, ndvi, args.gs_start_doy, args.gs_end_doy)
+    events = detect_events(weather, ndvi, args.gs_start_doy, args.gs_end_doy, last_frost_doy)
     print(f"Detected {len(events)} events, annotating top 5")
     for ev in sorted(events, key=lambda e: e["score"], reverse=True)[:5]:
         print(f"  • {ev['label']} (DOY {ev['doy']}, score {ev['score']:.1f})")

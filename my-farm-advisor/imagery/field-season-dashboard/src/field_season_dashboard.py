@@ -532,7 +532,7 @@ def build_dashboard(
     )
     ax.set_ylabel("Mean NDVI", fontsize=10, fontweight="bold")
     ax.set_title(
-        "Field Mean NDVI Time Series  (Sentinel-2)",
+        "1. Field Mean NDVI Time Series  (Sentinel-2)",
         fontsize=11,
         fontweight="bold",
         loc="left",
@@ -560,7 +560,7 @@ def build_dashboard(
     ax.set_ylabel("Daily Precipitation (mm)", fontsize=10, fontweight="bold", color=COLOR_PRECIP)
     ax.tick_params(axis="y", labelcolor=COLOR_PRECIP)
     ax.set_title(
-        "Daily and Cumulative Precipitation",
+        "2. Daily and Cumulative Precipitation",
         fontsize=11,
         fontweight="bold",
         loc="left",
@@ -618,7 +618,7 @@ def build_dashboard(
     )
     ax.set_ylabel("Temperature (°F)", fontsize=10, fontweight="bold")
     ax.set_title(
-        "Temperature and Extremes",
+        "3. Temperature and Extremes",
         fontsize=11,
         fontweight="bold",
         loc="left",
@@ -718,7 +718,7 @@ def build_dashboard(
     
     ax.set_ylabel("Cumulative GDD (°F·days)", fontsize=10, fontweight="bold")
     ax.set_title(
-        f"Cumulative Growing Degree Days  (base {c_to_f(base_temp):.0f}°F)",
+        "4. Cumulative Growing Degree Days  (base 50°F)",
         fontsize=11,
         fontweight="bold",
         loc="left",

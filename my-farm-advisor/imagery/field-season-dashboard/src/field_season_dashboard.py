@@ -38,19 +38,19 @@ CROP_GDD_BASE: dict[str, float] = {
 # Each tuple: (threshold_value, label, description)
 CROP_GDD_THRESHOLDS: dict[str, list[tuple[float, str]]] = {
     "Soybeans": [
-        (180, "Planting/Emergence"),
-        (1000, "Flowering and Pod Set"),
-        (1650, "Seed Fill"),
+        (180, "Planting / Emergence"),
+        (1000, "Flowering and pod set"),
+        (1650, "Seed fill"),
     ],
     "Corn": [
-        (125, "Planting/Emergence"),
+        (125, "Planting / Emergence"),
         (500, "V6 Stage"),
         (1150, "Silking"),
     ],
     "default": [
-        (180, "Planting/Emergence"),
-        (1000, "Flowering and Pod Set"),
-        (1650, "Seed Fill"),
+        (180, "Planting / Emergence"),
+        (1000, "Flowering and pod set"),
+        (1650, "Seed fill"),
     ],
 }
 
@@ -668,19 +668,28 @@ def build_dashboard(
                 y_min, y_max = ax.get_ylim()
                 y_range = y_max - y_min
                 
-                # Stagger positions: alternate above/below the threshold
-                if i % 2 == 0:
-                    text_y = threshold + y_range * 0.06
+                # Explicit positioning per callout index
+                if i == 0:
+                    # Planting / Emergence: above, to the LEFT
+                    text_y = threshold + y_range * 0.12
+                    text_x = max(cross_doy - x_range * 0.12, x_min + x_range * 0.03)
+                    ha = "right"
                     va = "bottom"
-                else:
+                elif i == 1:
+                    # Flowering and pod set: below, to the right (keep as is)
                     text_y = threshold - y_range * 0.06
+                    text_x = min(cross_doy + x_range * 0.04, x_max - x_range * 0.03)
+                    ha = "left"
+                    va = "top"
+                else:
+                    # Seed fill: below, to the RIGHT (further down)
+                    text_y = threshold - y_range * 0.12
+                    text_x = min(cross_doy + x_range * 0.08, x_max - x_range * 0.03)
+                    ha = "left"
                     va = "top"
                 
                 # Keep within bounds
                 text_y = max(y_min + y_range * 0.03, min(text_y, y_max - y_range * 0.03))
-                
-                # Position text to the right of the crossing point
-                text_x = min(cross_doy + x_range * 0.04, x_max - x_range * 0.03)
                 
                 ax.annotate(
                     f"{label}\n({cross_doy}, {threshold:.0f} GDD)",

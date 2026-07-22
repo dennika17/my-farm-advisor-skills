@@ -74,3 +74,56 @@ The script is fully parameterized:
 - GDD base temp auto-detected from crop type
 - Sentinel scene discovery is automatic
 - Output path auto-generated from parameters
+
+---
+
+## Assignment 3
+
+### Skill/Workflow
+
+`field-season-dashboard` — Aligned Field-Season Mini-Dashboard
+
+### Input Files (from data-pipeline)
+
+| Source | Runtime Path |
+|--------|-------------|
+| Field boundary | `growers/<grower>/farms/<farm>/fields/<field>/boundary/field_boundary.geojson` |
+| Daily weather | `growers/<grower>/farms/<farm>/fields/<field>/weather/daily_weather.csv` |
+| CDL crop composition | `growers/<grower>/farms/<farm>/derived/tables/*_cdl_YYYY_YYYY_full_composition_updated.csv` |
+| Sentinel-2 NDVI | `growers/<grower>/farms/<farm>/fields/<field>/satellite/sentinel/<year>/sentinel_*/sentinel_*_ndvi.tif` |
+
+### Weather Metrics Calculated
+
+- **Daily precipitation** (mm) and **cumulative precipitation** (inches)
+- **Temperature extremes** — daily min/max/mean (°F)
+- **Growing Degree Days** (GDD, °F·days, base 50°F)
+- **Cumulative GDD** starting after last spring frost (detected automatically)
+
+### Dashboard Image Path
+
+Relative to `data-pipeline/`:
+
+```
+imagery/field-season-dashboard/output/<field_id>_<year>_dashboard.png
+```
+
+### How to Rerun
+
+```bash
+export DATA_PIPELINE_DATA_ROOT=/home/coder/my-farm-advisor-runtime
+cd ~/my-farm-advisor-skills/my-farm-advisor/imagery/field-season-dashboard
+"${DATA_PIPELINE_DATA_ROOT}/data-pipeline/.venv/bin/python" \
+  src/field_season_dashboard.py \
+  --grower-slug northern-illinois-grower \
+  --farm-slug illinois-farm \
+  --field-id osm-1417080803 \
+  --year 2021
+```
+
+### Known Data Limitations
+
+- **Sentinel-2 availability**: Scene count varies by year (7–9 scenes) depending on cloud cover and satellite revisit
+- **Crop-specific GDD thresholds**: Soybeans (180/1000/1650 °F·days) vs Corn (125/500/1150 °F·days) — auto-detected from CDL
+- **Last frost detection**: Limited to spring period (before DOY 180); uses 36°F threshold
+- **Prerequisites**: Requires pre-generated runtime data (boundaries, weather, NDVI rasters, CDL tables)
+- **Year coverage**: 2021–2025 available for field `osm-1417080803`

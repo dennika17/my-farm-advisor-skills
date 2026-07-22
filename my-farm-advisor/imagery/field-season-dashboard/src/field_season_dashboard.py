@@ -34,6 +34,26 @@ CROP_GDD_BASE: dict[str, float] = {
     "default": 10.0,
 }
 
+# Crop-specific GDD thresholds in °F·days (base 50°F)
+# Each tuple: (threshold_value, label, description)
+CROP_GDD_THRESHOLDS: dict[str, list[tuple[float, str]]] = {
+    "Soybeans": [
+        (180, "Planting/Emergence"),
+        (1000, "Flowering and Pod Set"),
+        (1650, "Seed Fill"),
+    ],
+    "Corn": [
+        (125, "Planting/Emergence"),
+        (500, "V6 Stage"),
+        (1150, "Silking"),
+    ],
+    "default": [
+        (180, "Planting/Emergence"),
+        (1000, "Flowering and Pod Set"),
+        (1650, "Seed Fill"),
+    ],
+}
+
 DEFAULT_GS_START = 121  # May 1
 DEFAULT_GS_END = 273    # Sep 30
 
@@ -618,25 +638,75 @@ def build_dashboard(
         linewidth=2.2,
         zorder=3,
     )
-    # Threshold lines (900 and 1800 °F·days)
-    for threshold in [900, 1800]:
-        ax.axhline(
-            threshold,
-            color="gray",
-            linestyle="--",
-            alpha=0.4,
-            linewidth=0.8,
-            zorder=1,
-        )
-        ax.text(
-            338,
-            threshold,
-            f"{threshold} GDD",
-            fontsize=7,
-            color="gray",
-            va="center",
-            ha="left",
-        )
+    
+    # Add crop-specific GDD threshold lines and callouts
+    gdd_thresholds = CROP_GDD_THRESHOLDS.get(crop, CROP_GDD_THRESHOLDS["default"])
+    gdd_max = float(weather["gdd_cumulative"].max())
+    
+    for i, (threshold, label) in enumerate(gdd_thresholds):
+        # Only show thresholds that are within the season's GDD range
+        if threshold <= gdd_max * 1.1:
+            # Draw threshold line
+            ax.axhline(
+                threshold,
+                color="gray",
+                linestyle="--",
+                alpha=0.35,
+                linewidth=0.7,
+                zorder=1,
+            )
+            
+            # Find where cumulative GDD first crosses this threshold
+            crossed = weather[weather["gdd_cumulative"] >= threshold]
+            if not crossed.empty:
+                cross_doy = int(crossed.iloc[0]["doy"])
+                cross_gdd = float(crossed.iloc[0]["gdd_cumulative"])
+                
+                # Determine text position
+                x_min, x_max = ax.get_xlim()
+                x_range = x_max - x_min
+                y_min, y_max = ax.get_ylim()
+                y_range = y_max - y_min
+                
+                # Stagger positions: alternate above/below the threshold
+                if i % 2 == 0:
+                    text_y = threshold + y_range * 0.06
+                    va = "bottom"
+                else:
+                    text_y = threshold - y_range * 0.06
+                    va = "top"
+                
+                # Keep within bounds
+                text_y = max(y_min + y_range * 0.03, min(text_y, y_max - y_range * 0.03))
+                
+                # Position text to the right of the crossing point
+                text_x = min(cross_doy + x_range * 0.04, x_max - x_range * 0.03)
+                
+                ax.annotate(
+                    f"{label}\n({cross_doy}, {threshold:.0f} GDD)",
+                    xy=(cross_doy, cross_gdd),
+                    xytext=(text_x, text_y),
+                    fontsize=7.5,
+                    fontweight="bold",
+                    color="#14532d",  # Dark green
+                    ha="left",
+                    va=va,
+                    arrowprops=dict(
+                        arrowstyle="->",
+                        color="#14532d",
+                        alpha=0.6,
+                        lw=0.8,
+                    ),
+                    bbox=dict(
+                        boxstyle="round,pad=0.3",
+                        facecolor="#dcfce7",  # Light green
+                        alpha=0.85,
+                        edgecolor="#14532d",
+                        linewidth=0.7,
+                    ),
+                    zorder=10,
+                )
+    
     ax.set_ylabel("Cumulative GDD (°F·days)", fontsize=10, fontweight="bold")
     ax.set_title(
         f"Cumulative Growing Degree Days  (base {c_to_f(base_temp):.0f}°F)",

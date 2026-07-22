@@ -419,10 +419,18 @@ def add_event_annotations(
         # Calculate safe x position for text with SHORT arrows (5% of x-range)
         margin = x_range * 0.08
         arrow_offset = x_range * 0.05  # Short arrows
-        if panel_idx == 0 and event["type"] == "ndvi_rise":
-            # Rapid growth: text to the left
-            text_x = max(doy - arrow_offset, x_min + margin)
+        if panel_idx == 0 and event["type"] == "ndvi_peak":
+            # Peak NDVI: text to the right, above the curve
+            text_x = min(doy + arrow_offset * 1.5, x_max - margin)
+            text_y = y_pos + y_range * 0.12
+            ha = "left"
+            va = "bottom"
+        elif panel_idx == 0 and event["type"] == "ndvi_rise":
+            # Rapid growth: text to the left, above but not overlapping peak
+            text_x = max(doy - arrow_offset * 1.5, x_min + margin)
+            text_y = y_pos + y_range * 0.08
             ha = "right"
+            va = "bottom"
         elif panel_idx == 2 and event["type"] == "frost":
             # Frost: text to the left
             text_x = max(doy - arrow_offset, x_min + margin)

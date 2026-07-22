@@ -514,7 +514,7 @@ def build_dashboard(
     # Create figure with 4 stacked panels
     fig, axes = plt.subplots(4, 1, sharex=True, figsize=(12, 16))
     fig.suptitle(
-        f"Field-season Weather and NDVI Storyline for {year} {crop} - Field ID # {field_id}",
+        f"Field-season Weather and NDVI Storyline for {year} {crop} - {state_name.upper()} Field ID # {field_id}",
         fontsize=13,
         fontweight="bold",
         y=0.98,

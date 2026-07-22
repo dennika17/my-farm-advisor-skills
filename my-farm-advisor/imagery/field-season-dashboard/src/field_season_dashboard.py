@@ -347,8 +347,15 @@ def add_event_annotations(
                 y_pos = float(ndvi_match.iloc[0]["ndvi"])
             else:
                 y_pos = float(ndvi["ndvi"].max())
-            # Keep text within 15-85% of y range
-            text_y = y_min + y_range * (0.15 + (i % 3) * 0.35)
+            # Position based on event type
+            if event["type"] == "ndvi_peak":
+                # Peak: text to the right of the dot, slightly above
+                text_y = y_min + y_range * 0.75
+            elif event["type"] == "ndvi_rise":
+                # Rapid growth: text up and to the left
+                text_y = y_min + y_range * 0.80
+            else:
+                text_y = y_min + y_range * (0.15 + (i % 3) * 0.35)
 
         elif panel_idx == 1:  # Precipitation
             precip_match = weather[weather["doy"] == doy]
@@ -356,8 +363,8 @@ def add_event_annotations(
                 y_pos = float(precip_match.iloc[0]["PRECTOTCORR"])
             else:
                 y_pos = float(weather["PRECTOTCORR"].max()) * 0.8
-            # Keep text in upper portion
-            text_y = y_min + y_range * (0.55 + (i % 2) * 0.25)
+            # Keep text well above the bars (70-85% of y range)
+            text_y = y_min + y_range * (0.70 + (i % 2) * 0.15)
 
         elif panel_idx == 2:  # Temperature
             temp_match = weather[weather["doy"] == doy]
@@ -365,22 +372,39 @@ def add_event_annotations(
                 y_pos = float(temp_match.iloc[0]["T2M_MAX"])
             else:
                 y_pos = float(weather["T2M_MAX"].max())
-            # Keep text in upper-middle area
-            text_y = y_min + y_range * (0.20 + (i % 3) * 0.30)
+            # Frost goes lower-left, hot goes upper-right to avoid overlap
+            if event["type"] == "frost":
+                text_y = y_min + y_range * 0.25
+            elif event["type"] == "hot_day":
+                text_y = y_min + y_range * 0.85
+            else:
+                text_y = y_min + y_range * (0.50 + (i % 2) * 0.25)
 
         else:
             continue
 
-        # Calculate safe x position for text
-        # Use a margin of 8% from edges
+        # Calculate safe x position for text with SHORT arrows (5% of x-range)
         margin = x_range * 0.08
-        if doy < x_min + x_range * 0.5:
+        arrow_offset = x_range * 0.05  # Short arrows
+        if panel_idx == 0 and event["type"] == "ndvi_rise":
+            # Rapid growth: text to the left
+            text_x = max(doy - arrow_offset, x_min + margin)
+            ha = "right"
+        elif panel_idx == 2 and event["type"] == "frost":
+            # Frost: text to the left
+            text_x = max(doy - arrow_offset, x_min + margin)
+            ha = "right"
+        elif panel_idx == 2 and event["type"] == "hot_day":
+            # Hottest: text to the right
+            text_x = min(doy + arrow_offset, x_max - margin)
+            ha = "left"
+        elif doy < x_min + x_range * 0.5:
             # Event is in left half: text goes to the right
-            text_x = min(doy + x_range * 0.12, x_max - margin)
+            text_x = min(doy + arrow_offset, x_max - margin)
             ha = "left"
         else:
             # Event is in right half: text goes to the left
-            text_x = max(doy - x_range * 0.12, x_min + margin)
+            text_x = max(doy - arrow_offset, x_min + margin)
             ha = "right"
 
         # Ensure y text stays within bounds
@@ -574,13 +598,16 @@ def build_dashboard(
     )
     ax.set_ylabel("Temperature (°F)", fontsize=10, fontweight="bold")
     ax.set_title(
-        "Temperature Extremes",
+        "Temperature and Extremes",
         fontsize=11,
         fontweight="bold",
         loc="left",
         pad=8,
     )
     ax.legend(loc="upper left", fontsize=8, framealpha=0.9)
+    # Force y-axis to start at 0°F
+    _, y_max_temp = ax.get_ylim()
+    ax.set_ylim(0, y_max_temp)
 
     # ---- Panel 4: Cumulative GDD ----
     ax = axes[3]

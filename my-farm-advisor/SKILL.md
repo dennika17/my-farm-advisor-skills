@@ -41,7 +41,7 @@ Open the subtree index that matches the request:
 
 - Use **Field Management** for boundaries, deterministic field sampling, or headlands.
 - Use **Imagery** for Landsat or Sentinel-2 scene acquisition and vegetation products.
-- Use **Soil** for SSURGO and CDL-derived soil and crop-layer analysis.
+- Use **Soil** for SSURGO and CDL-derived soil and crop-layer analysis, including full-component depth interpolation.
 - Use **EDA** for exploration, comparisons, correlations, visualization, and time series.
 - Use **Data Sources** for canonical data rebuilds and farm-level intelligence reporting.
 - Use **Strategy** for maturity planning and crop-strategy decisions.

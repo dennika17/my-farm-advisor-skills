@@ -238,7 +238,7 @@ The umbrella entrypoint is [`SKILL.md`](SKILL.md). From there, the skill routes 
 | EDA              | Exploratory analysis, comparisons, correlations, and time-series views | [`eda/INDEX.md`](eda/INDEX.md)                           |
 | Field Management | Boundaries, field sampling, and headlands workflows                    | [`field-management/INDEX.md`](field-management/INDEX.md) |
 | Imagery          | Landsat and Sentinel-2 workflows for vegetation and scene analysis     | [`imagery/INDEX.md`](imagery/INDEX.md)                   |
-| Soil             | SSURGO, poster-card outputs, and CDL-based soil/crop context           | [`soil/INDEX.md`](soil/INDEX.md)                         |
+| Soil             | SSURGO, poster-card outputs, CDL-based soil/crop context, and depth-interpolated soil profiles | [`soil/INDEX.md`](soil/INDEX.md)                         |
 | Strategy         | Crop strategy and maturity planning workflows                          | [`strategy/INDEX.md`](strategy/INDEX.md)                 |
 | Weather          | NASA POWER weather ingestion and downstream weather analysis           | [`weather/INDEX.md`](weather/INDEX.md)                   |
 
@@ -303,6 +303,7 @@ This skill is the main farm-specific intelligence layer. The rest of the reposit
 - Farm reporting: [`data-sources/farm-intelligence-reporting/AGENTS.md`](data-sources/farm-intelligence-reporting/AGENTS.md)
 - Field boundaries: [`field-management/field-boundaries/GUIDE.md`](field-management/field-boundaries/GUIDE.md)
 - SSURGO workflows: [`soil/ssurgo-soil/GUIDE.md`](soil/ssurgo-soil/GUIDE.md)
+- Soil depth interpolation: [`soil/soil-depth-interpolation/GUIDE.md`](soil/soil-depth-interpolation/GUIDE.md)
 - Sentinel-2 workflows: [`imagery/sentinel2-imagery/GUIDE.md`](imagery/sentinel2-imagery/GUIDE.md)
 - Weather workflows: [`weather/nasa-power-weather/GUIDE.md`](weather/nasa-power-weather/GUIDE.md)
 

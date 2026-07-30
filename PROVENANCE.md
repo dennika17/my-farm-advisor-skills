@@ -96,3 +96,16 @@ Use the template below for each import. Keep every field present. If a field doe
 - exclusions: `.git/`; generated `examples/**/output/` artifacts; generated `scripts/output/` artifacts; no unrelated scientific skills outside `scientific-skills/qtl-analysis/`; no remote flattening of the local grouped example taxonomy
 - local_modifications: Imported the local grouped example layout as the structural base, backfilled remote-only `README.md` and `scripts/qtl_cli.py`, merged richer remote SKILL sections without changing example-first behavior, normalized local-source path assumptions to `my-farm-qtl-analysis/`, preserved `scripts/verify_gpu_hpc.py` and `VISUALIZATION_SUMMARY.md`, and excluded generated outputs after asset audit.
 - update_procedure: Re-run `git ls-remote https://github.com/borealBytes/my-farm-advisor.git refs/heads/main`, capture the resolved baseline SHA for `skills/my-farm-qtl-analysis`, re-run `git branch --show-current`, `git rev-parse HEAD`, and `git status --short` in `/media/clay/Data/dev/scientific-agent-skills-worktrees/scientific-agent-skills-qtl-analysis`, copy only `scientific-skills/qtl-analysis/` into `my-farm-qtl-analysis/`, re-apply the remote backfill files and grouped-path normalization, repeat the asset audit, and refresh this provenance record plus `IMPORT_MANIFEST.md` in the same commit.
+
+## soil-depth-interpolation (my-farm-advisor subskill)
+- source_repo: N/A
+- source_local_path: N/A
+- source_ref: N/A
+- source_commit: N/A
+- source_status: N/A
+- source_path: N/A
+- destination_path: my-farm-advisor/soil/soil-depth-interpolation/
+- import_date: 2026-07-28
+- exclusions: N/A
+- local_modifications: Created as a new local subskill extending my-farm-advisor/soil/ssurgo-soil. Fetches full USDA SSURGO data (all components, all horizons) and computes depth-interpolated soil properties at 10 cm resolution. Produces ssurgo_full_regenerated.csv, ssurgo_full_with_components.csv, and ssurgo_full_depth_interpolated.csv per field.
+- update_procedure: Edit files directly in my-farm-advisor/soil/soil-depth-interpolation/; run ./scripts/validate.sh before committing.

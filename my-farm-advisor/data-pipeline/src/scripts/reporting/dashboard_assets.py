@@ -337,9 +337,11 @@ def extract_ndvi_from_composite(
     with rasterio.open(tif_path) as src:
         out_image, out_transform = mask(src, [boundary_geometry], crop=True, nodata=src.nodata)
         band = out_image[0]
-        # Handle nodata
-        nodata = src.nodata if src.nodata is not None else -999
-        valid = band[band != nodata]
+        # Handle nodata: may be NaN, None, or a numeric value
+        if src.nodata is not None and not np.isnan(src.nodata):
+            valid = band[band != src.nodata]
+        else:
+            valid = band[np.isfinite(band)]
         if valid.size == 0:
             return (float("nan"), float("nan"), 0)
         return (float(np.mean(valid)), float(np.std(valid)), int(valid.size))

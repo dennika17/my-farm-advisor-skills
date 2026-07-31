@@ -1291,7 +1291,9 @@ buildYearMenu();
 updateControls();
 renderAll();
 </script>
+<script>
 {plotly_bundle}
+</script>
 </body>
 </html>"""
 

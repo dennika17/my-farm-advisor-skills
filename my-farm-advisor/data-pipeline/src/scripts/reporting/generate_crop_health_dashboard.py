@@ -1049,7 +1049,7 @@ function buildNdviTraces() {{
 
 function buildNdviLayout(annotations = []) {{
   const layout = {{
-    title: {{ text: 'Mean NDVI', font: {{ size: 14 }} }},
+    title: {{ text: 'Mean NDVI Time Series', font: {{ size: 14 }} }},
     margin: {{ t: 40, b: 55, l: 50, r: 50 }},
     xaxis: {{
       title: {{ text: 'Day of Year', font: {{ size: 12 }} }},
@@ -1109,14 +1109,14 @@ function buildRainTraces() {{
 function buildRainLayout() {{
   const layout = {{
     title: {{ text: 'Rainfall', font: {{ size: 14 }} }},
-    margin: {{ t: 40, b: 55, l: 50, r: 50 }},
+    margin: {{ t: 40, b: 55, l: 50, r: 65 }},
     xaxis: {{
       title: {{ text: 'Day of Year', font: {{ size: 12 }} }},
       range: [80, 320],
       dtick: 30,
     }},
-    yaxis: {{ title: 'Daily rainfall (in)', side: 'left' }},
-    yaxis2: {{ title: 'Cumulative rainfall (in)', overlaying: 'y', side: 'right' }},
+    yaxis: {{ title: 'Daily Rainfall (in)', side: 'left' }},
+    yaxis2: {{ title: 'Cumulative Rainfall (in)', overlaying: 'y', side: 'right' }},
     legend: {{ orientation: 'h', y: 1.12, x: 1, xanchor: 'right' }},
     paper_bgcolor: '#fff',
     plot_bgcolor: '#fff',

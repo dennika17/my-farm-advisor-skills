@@ -819,7 +819,7 @@ main {{
 <header>
   <div>
     <h1>NDVI-based Crop Health Monitoring Dashboard</h1>
-    <div class="subtitle">{farm_name} — Generated {generated_at}</div>
+    <div class="subtitle">{farm_name}</div>
   </div>
   <div class="controls">
     <div class="dropdown-wrap" id="fieldDropdownWrap">
@@ -974,6 +974,7 @@ function buildMapLayout() {{
     paper_bgcolor: '#fff',
     plot_bgcolor: '#fff',
     hovermode: 'closest',
+    hoverdistance: 200,
     dragmode: 'pan',
   }};
 

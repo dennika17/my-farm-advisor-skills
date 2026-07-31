@@ -20,7 +20,6 @@ Environment:
 from __future__ import annotations
 
 import argparse
-import csv
 import json
 import os
 import shutil
@@ -361,37 +360,6 @@ def _geometry_to_geojson(geometry: shapely.geometry.base.BaseGeometry) -> dict:
     return mapping(geometry)
 
 
-def _load_dominant_crops(farm_dir: Path) -> dict[str, str]:
-    """Load dominant crop per field-year from CDL composition CSV.
-    
-    Returns dict mapping 'fieldId_year' -> 'Crop Name'.
-    """
-    csv_path = farm_dir / "derived" / "tables" / f"{farm_dir.name}_cdl_2021_2025_full_composition.csv"
-    if not csv_path.exists():
-        return {}
-    
-    dominant: dict[str, str] = {}
-    from collections import defaultdict
-    field_year_crops: defaultdict[str, list[tuple[str, float]]] = defaultdict(list)
-    
-    with open(csv_path, "r", newline="") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            fid = row["field_id"]
-            year = row["year"]
-            crop = row["crop_name"]
-            pct = float(row["pct"])
-            key = f"{fid}_{year}"
-            field_year_crops[key].append((crop, pct))
-    
-    for key, crops in field_year_crops.items():
-        # Pick the crop with highest percentage
-        top_crop = max(crops, key=lambda x: x[1])[0]
-        dominant[key] = top_crop
-    
-    return dominant
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Generate an offline self-contained NDVI-based Crop Health Monitoring Dashboard HTML file."
@@ -616,10 +584,6 @@ def main() -> None:
     weather_json = json.dumps(weather_by_field_year, sort_keys=False)
     ndvi_json = json.dumps(ndvi_by_field_year, sort_keys=False)
 
-    # Load dominant crops
-    dominant_crops = _load_dominant_crops(farm_path)
-    crop_json = json.dumps(dominant_crops, sort_keys=False)
-
     generated_at = datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
 
     # Build HTML
@@ -636,7 +600,6 @@ def main() -> None:
         fields_json=fields_json,
         weather_json=weather_json,
         ndvi_json=ndvi_json,
-        crop_json=crop_json,
         plotly_bundle=plotly_bundle,
         no_basemap_note=no_basemap_note,
     )
@@ -671,7 +634,6 @@ def _build_crop_health_html(
     fields_json: str,
     weather_json: str,
     ndvi_json: str,
-    crop_json: str,
     plotly_bundle: str,
     no_basemap_note: str,
 ) -> str:
@@ -868,10 +830,6 @@ main {{
       <button class="dropdown-toggle" id="yearToggle">Years ▼</button>
       <div class="dropdown-menu" id="yearMenu"></div>
     </div>
-    <div class="dropdown-wrap" id="cropDropdownWrap">
-      <button class="dropdown-toggle" id="cropToggle">Crops ▼</button>
-      <div class="dropdown-menu" id="cropMenu"></div>
-    </div>
     <button class="reset-btn" id="resetBtn">Reset view</button>
   </div>
   <div class="note" id="summaryNote"></div>
@@ -897,7 +855,6 @@ const FARM_DATA = {{
 const FIELDS = {fields_json};
 const WEATHER_DATA = {weather_json};
 const NDVI_DATA = {ndvi_json};
-const CROP_DATA = {crop_json};
 
 // Basemap image
 const BASEMAP_B64 = "{basemap_b64}";
@@ -938,11 +895,6 @@ function getFieldColor(fieldId) {{
 function getFieldName(fieldId) {{
   const f = FIELDS.find(x => x.fieldId === fieldId);
   return f ? f.fieldName : fieldId;
-}}
-
-function getCropName(fieldId, year) {{
-  const key = `${{fieldId}}_${{year}}`;
-  return CROP_DATA[key] || null;
 }}
 
 function computeCentroid(polygons) {{
@@ -1062,9 +1014,7 @@ function buildNdviTraces() {{
     // Sort scenes chronologically by day of year
     group.scenes.sort((a, b) => a.dayOfYear - b.dayOfYear);
     const color = getFieldColor(group.fieldId);
-    const crop = getCropName(group.fieldId, group.year);
-    const cropLabel = crop ? ` (${{crop}})` : '';
-    const name = `${{getFieldName(group.fieldId)}} ${{group.year}}${{cropLabel}}`;
+    const name = `${{getFieldName(group.fieldId)}} ${{group.year}}`;
 
     traces.push({{
       x: group.scenes.map(s => s.dayOfYear),
@@ -1074,8 +1024,8 @@ function buildNdviTraces() {{
       name: name,
       line: {{ color: color, width: 2 }},
       marker: {{ color: color, size: 8, symbol: 'circle' }},
-      customdata: group.scenes.map(s => [group.fieldId, group.year, s.sceneDate, s.cloudCover, crop || '']),
-      hovertemplate: '<b>%{{customdata[0]}}</b> (%{{customdata[1]}}%{{customdata[4] ? ", " + customdata[4] : ""}})<br>%{{customdata[2]}} (DOY %{{x}})<br>Mean NDVI: %{{y:.4f}}<br>Cloud: %{{customdata[3]}}%<extra></extra>',
+      customdata: group.scenes.map(s => [group.fieldId, group.year, s.sceneDate, s.cloudCover]),
+      hovertemplate: '<b>%{{customdata[0]}}</b> (%{{customdata[1]}})<br>%{{customdata[2]}} (DOY %{{x}})<br>Mean NDVI: %{{y:.4f}}<br>Cloud: %{{customdata[3]}}%<extra></extra>',
     }});
   }});
 
@@ -1125,9 +1075,7 @@ function buildRainTraces() {{
     const daily = rec.daily;
     if (!daily || daily.length === 0) return;
     const color = getFieldColor(rec.fieldId);
-    const crop = getCropName(rec.fieldId, rec.year);
-    const cropLabel = crop ? ` (${{crop}})` : '';
-    const name = `${{getFieldName(rec.fieldId)}} ${{rec.year}}${{cropLabel}}`;
+    const name = `${{getFieldName(rec.fieldId)}} ${{rec.year}}`;
 
     // Daily rainfall bars
     traces.push({{
@@ -1137,8 +1085,8 @@ function buildRainTraces() {{
       name: name + ' (daily)',
       marker: {{ color: color, opacity: 0.25 }},
       yaxis: 'y1',
-      customdata: daily.map(d => [rec.fieldId, rec.year, d.date, crop || '']),
-      hovertemplate: '<b>%{{customdata[0]}}</b> (%{{customdata[1]}}%{{customdata[3] ? ", " + customdata[3] : ""}})<br>%{{customdata[2]}} (DOY %{{x}})<br>Daily: %{{y:.2f}} in<extra></extra>',
+      customdata: daily.map(d => [rec.fieldId, rec.year, d.date]),
+      hovertemplate: '<b>%{{customdata[0]}}</b> (%{{customdata[1]}})<br>%{{customdata[2]}} (DOY %{{x}})<br>Daily: %{{y:.2f}} in<extra></extra>',
       showlegend: false,
     }});
 
@@ -1151,8 +1099,8 @@ function buildRainTraces() {{
       name: name + ' (cumulative)',
       line: {{ color: color, width: 2 }},
       yaxis: 'y2',
-      customdata: daily.map(d => [rec.fieldId, rec.year, d.date, crop || '']),
-      hovertemplate: '<b>%{{customdata[0]}}</b> (%{{customdata[1]}}%{{customdata[3] ? ", " + customdata[3] : ""}})<br>%{{customdata[2]}} (DOY %{{x}})<br>Cumulative: %{{y:.2f}} in<extra></extra>',
+      customdata: daily.map(d => [rec.fieldId, rec.year, d.date]),
+      hovertemplate: '<b>%{{customdata[0]}}</b> (%{{customdata[1]}})<br>%{{customdata[2]}} (DOY %{{x}})<br>Cumulative: %{{y:.2f}} in<extra></extra>',
     }});
   }});
   return traces;
@@ -1186,9 +1134,7 @@ function buildGddTraces() {{
     const daily = rec.daily;
     if (!daily || daily.length === 0) return;
     const color = getFieldColor(rec.fieldId);
-    const crop = getCropName(rec.fieldId, rec.year);
-    const cropLabel = crop ? ` (${{crop}})` : '';
-    const name = `${{getFieldName(rec.fieldId)}} ${{rec.year}}${{cropLabel}}`;
+    const name = `${{getFieldName(rec.fieldId)}} ${{rec.year}}`;
 
     traces.push({{
       x: daily.map(d => d.dayOfYear),
@@ -1197,8 +1143,8 @@ function buildGddTraces() {{
       type: 'scatter',
       name: name,
       line: {{ color: color, width: 2 }},
-      customdata: daily.map(d => [rec.fieldId, rec.year, d.date, crop || '']),
-      hovertemplate: '<b>%{{customdata[0]}}</b> (%{{customdata[1]}}%{{customdata[3] ? ", " + customdata[3] : ""}})<br>%{{customdata[2]}} (DOY %{{x}})<br>Cumulative GDD: %{{y:.1f}}<extra></extra>',
+      customdata: daily.map(d => [rec.fieldId, rec.year, d.date]),
+      hovertemplate: '<b>%{{customdata[0]}}</b> (%{{customdata[1]}})<br>%{{customdata[2]}} (DOY %{{x}})<br>Cumulative GDD: %{{y:.1f}}<extra></extra>',
     }});
 
     // Frost marker
@@ -1282,8 +1228,6 @@ function renderAll() {{
     attachRelayoutSync('gddDiv');
   }}
 
-  updateControls();
-  buildCropMenu();
   updateSummary();
 }}
 
@@ -1395,65 +1339,19 @@ function buildYearMenu() {{
   }});
 }}
 
-function getSelectedCrops() {{
-  const crops = new Set();
-  selectedFields.forEach(fid => {{
-    selectedYears.forEach(year => {{
-      const crop = getCropName(fid, year);
-      if (crop) crops.add(crop);
-    }});
-  }});
-  return Array.from(crops).sort();
-}}
-
-function buildCropMenu() {{
-  const menu = document.getElementById('cropMenu');
-  menu.innerHTML = '';
-  
-  const crops = getSelectedCrops();
-  
-  if (crops.length === 0) {{
-    menu.innerHTML = '<div class="dropdown-item"><span class="muted">No crop data for selection</span></div>';
-    return;
-  }}
-  
-  // Count fields per crop for the selected years
-  const cropCounts = {{}};
-  crops.forEach(crop => {{ cropCounts[crop] = 0; }});
-  selectedFields.forEach(fid => {{
-    selectedYears.forEach(year => {{
-      const crop = getCropName(fid, year);
-      if (crop && cropCounts[crop] !== undefined) {{
-        cropCounts[crop]++;
-      }}
-    }});
-  }});
-  
-  crops.forEach(crop => {{
-    const item = document.createElement('div');
-    item.className = 'dropdown-item';
-    item.innerHTML = `<span>${{crop}}</span> <span class="muted">(${{cropCounts[crop]}} field-year)</span>`;
-    menu.appendChild(item);
-  }});
-}}
-
 function updateControls() {{
   const fCount = selectedFields.size;
   const yCount = selectedYears.size;
   const fTotal = FIELDS.length;
   const yTotal = getAllYears().length;
-  const crops = getSelectedCrops();
   document.getElementById('fieldToggle').textContent = `Fields (${{fCount}}/${{fTotal}}) ▼`;
   document.getElementById('yearToggle').textContent = `Years (${{yCount}}/${{yTotal}}) ▼`;
-  document.getElementById('cropToggle').textContent = `Crops (${{crops.length}}) ▼`;
 }}
 
 function updateSummary() {{
   const fCount = selectedFields.size;
   const yCount = selectedYears.size;
-  const crops = getSelectedCrops();
-  const cropStr = crops.length > 0 ? ` | ${{crops.join(', ')}}` : '';
-  const note = `${{fCount}} field${{fCount !== 1 ? 's' : ''}}, ${{yCount}} year${{yCount !== 1 ? 's' : ''}}${{cropStr}}`;
+  const note = `${{fCount}} field${{fCount !== 1 ? 's' : ''}}, ${{yCount}} year${{yCount !== 1 ? 's' : ''}}`;
   document.getElementById('summaryNote').textContent = note;
 }}
 
@@ -1490,10 +1388,8 @@ document.getElementById('resetBtn').addEventListener('click', resetView);
 // Initialize
 setupDropdown('fieldDropdownWrap', 'fieldToggle', 'fieldMenu');
 setupDropdown('yearDropdownWrap', 'yearToggle', 'yearMenu');
-setupDropdown('cropDropdownWrap', 'cropToggle', 'cropMenu');
 buildFieldMenu();
 buildYearMenu();
-buildCropMenu();
 updateControls();
 renderAll();
 </script>

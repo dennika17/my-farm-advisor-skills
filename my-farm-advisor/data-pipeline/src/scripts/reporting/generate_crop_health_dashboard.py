@@ -244,54 +244,85 @@ def _parse_weather_csv(weather_path: Path) -> pd.DataFrame | None:
     return df
 
 
-def _extract_ndvi_for_field(field_dir: Path, boundary_geojson: dict) -> list[dict[str, Any]]:
-    """Extract mean NDVI from pre-generated yearly composite TIFFs.
+def _extract_ndvi_time_series(field_dir: Path, boundary_geojson: dict) -> list[dict[str, Any]]:
+    """Extract per-scene NDVI time series from Sentinel-2 manifest.
 
     Process:
-    1. Discover composite TIFFs: derived/features/ndvi_year_YYYY_composite.tif
-    2. For each TIFF: open with rasterio, mask using field boundary polygon
-    3. Compute mean, std, and valid pixel count (excluding nodata)
-    4. Return list of records: year, mean_ndvi, std_ndvi, pixel_count
+    1. Read satellite/sentinel/manifest.json
+    2. For each scene with ndvi_tif:
+       a. Resolve absolute path using the runtime base
+       b. Open with rasterio, mask using field boundary polygon
+       c. Compute mean NDVI (excluding NaN/nodata)
+       d. Compute day-of-year from scene_date
+    3. Return chronologically sorted list of scene records
 
     Args:
         field_dir: Path to the field directory
         boundary_geojson: GeoJSON-like dict with boundary geometry
 
     Returns:
-        List of dicts with keys: year, mean_ndvi, std_ndvi, pixel_count
+        List of dicts with keys:
+            scene_date, day_of_year, mean_ndvi, cloud_cover, scene_id, year
     """
-    features_dir = field_dir / "derived" / "features"
-    if not features_dir.exists():
+    manifest_path = field_dir / "satellite" / "sentinel" / "manifest.json"
+    if not manifest_path.exists():
         return []
 
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        _print(f"  [WARN] Failed to read manifest: {exc}")
+        return []
+
+    # Use the resolved runtime base from the global runtime paths
+    runtime_base = _RUNTIME_PATHS.runtime_base
+
     records: list[dict[str, Any]] = []
-    for tif_path in sorted(features_dir.glob("ndvi_year_*_composite.tif")):
-        # Extract year from filename: ndvi_year_2021_composite.tif
-        stem = tif_path.stem
-        parts = stem.split("_")
-        if len(parts) < 3:
-            continue
-        try:
-            year = int(parts[2])
-        except ValueError:
-            continue
+    years_data = manifest.get("years", [])
+    if not years_data:
+        return []
 
-        try:
-            mean_ndvi, std_ndvi, pixel_count = extract_ndvi_from_composite(tif_path, boundary_geojson)
-        except Exception as exc:
-            _print(f"  [WARN] NDVI extraction failed for {tif_path.name}: {exc}")
-            continue
+    for year_entry in years_data:
+        year = year_entry.get("year")
+        scenes = year_entry.get("scenes", [])
+        for scene in scenes:
+            scene_date_str = scene.get("scene_date")
+            ndvi_rel_path = scene.get("ndvi_tif")
+            if not scene_date_str or not ndvi_rel_path:
+                continue
 
-        if pixel_count == 0 or np.isnan(mean_ndvi):
-            continue
+            try:
+                scene_date = datetime.strptime(scene_date_str, "%Y-%m-%d")
+                doy = scene_date.timetuple().tm_yday
+            except ValueError:
+                continue
 
-        records.append({
-            "year": year,
-            "mean_ndvi": round(float(mean_ndvi), 4),
-            "std_ndvi": round(float(std_ndvi), 4) if not np.isnan(std_ndvi) else None,
-            "pixel_count": pixel_count,
-        })
+            # Build absolute path to NDVI TIFF
+            ndvi_path = runtime_base / ndvi_rel_path
+            if not ndvi_path.exists():
+                _print(f"  [WARN] NDVI TIFF not found: {ndvi_path}")
+                continue
 
+            try:
+                mean_ndvi, std_ndvi, pixel_count = extract_ndvi_from_composite(ndvi_path, boundary_geojson)
+            except Exception as exc:
+                _print(f"  [WARN] NDVI extraction failed for {ndvi_path.name}: {exc}")
+                continue
+
+            if pixel_count == 0 or np.isnan(mean_ndvi):
+                continue
+
+            records.append({
+                "year": year,
+                "scene_date": scene_date_str,
+                "day_of_year": doy,
+                "mean_ndvi": round(float(mean_ndvi), 4),
+                "cloud_cover": round(float(scene.get("cloud_cover", 0.0)), 2),
+                "scene_id": scene.get("scene_id", ""),
+            })
+
+    # Sort chronologically
+    records.sort(key=lambda r: (r["year"], r["day_of_year"]))
     return records
 
 
@@ -438,11 +469,11 @@ def main() -> None:
                 except Exception:
                     pass
 
-        # Load NDVI from composites
+        # Load NDVI time series from Sentinel-2 scenes
         boundary_geojson = _geometry_to_geojson(raw_geom)
-        ndvi_records = _extract_ndvi_for_field(field_dir_path, boundary_geojson)
+        ndvi_records = _extract_ndvi_time_series(field_dir_path, boundary_geojson)
         has_ndvi = len(ndvi_records) > 0
-        ndvi_years = [r["year"] for r in ndvi_records]
+        ndvi_years = sorted(set(r["year"] for r in ndvi_records))
 
         field_color = _COLORBLIND_PALETTE[len(fields_data) % len(_COLORBLIND_PALETTE)]
         fields_data.append({
@@ -486,14 +517,16 @@ def main() -> None:
             except Exception as exc:
                 _print(f"  [WARN] Weather transformation failed for {field_id}: {exc}")
 
-        # Add NDVI records
+        # Add NDVI time series records
         for rec in ndvi_records:
             ndvi_by_field_year.append({
                 "fieldId": field_id,
                 "year": rec["year"],
+                "sceneDate": rec["scene_date"],
+                "dayOfYear": rec["day_of_year"],
                 "meanNdvi": rec["mean_ndvi"],
-                "stdNdvi": rec["std_ndvi"],
-                "pixelCount": rec["pixel_count"],
+                "cloudCover": rec["cloud_cover"],
+                "sceneId": rec["scene_id"],
             })
             total_ndvi_records += 1
 
@@ -829,6 +862,7 @@ let selectedFields = new Set(FIELDS.map(f => f.fieldId));
 let selectedYears = new Set();
 let sharedXRange = null;
 let _syncing = false;
+let _ndviAnnotations = [];
 
 // Determine default years
 function getDefaultYears() {{
@@ -930,24 +964,59 @@ function buildMapLayout() {{
   return layout;
 }}
 
-// Build NDVI traces
+// Build NDVI traces — per-scene time series with connected lines
 function buildNdviTraces() {{
   const traces = [];
+  const annotations = [];
+
+  // Group scenes by field-year
+  const grouped = {{}};
   NDVI_DATA.forEach(rec => {{
     if (!selectedFields.has(rec.fieldId) || !selectedYears.has(rec.year)) return;
-    // NDVI data is yearly mean only from composites — no daily resolution
-    // For time series, we create a single point per year at DOY 180 (mid-season)
+    const key = `${{rec.fieldId}}_${{rec.year}}`;
+    if (!grouped[key]) grouped[key] = {{ fieldId: rec.fieldId, year: rec.year, scenes: [] }};
+    grouped[key].scenes.push(rec);
+  }});
+
+  // Create connected line traces per field-year
+  Object.values(grouped).forEach(group => {{
+    // Sort scenes chronologically by day of year
+    group.scenes.sort((a, b) => a.dayOfYear - b.dayOfYear);
+    const color = getFieldColor(group.fieldId);
+    const name = `${{getFieldName(group.fieldId)}} ${{group.year}}`;
+
     traces.push({{
-      x: [180],
-      y: [rec.meanNdvi],
-      mode: 'markers',
+      x: group.scenes.map(s => s.dayOfYear),
+      y: group.scenes.map(s => s.meanNdvi),
+      mode: 'lines+markers',
       type: 'scatter',
-      name: `${{getFieldName(rec.fieldId)}} ${{rec.year}}`,
-      marker: {{ color: getFieldColor(rec.fieldId), size: 12, symbol: 'circle' }},
-      customdata: [[rec.fieldId, rec.year, rec.meanNdvi, rec.pixelCount]],
-      hovertemplate: '<b>%{{customdata[0]}}</b> (%{{customdata[1]}})<br>Mean NDVI: %{{customdata[2]:.4f}}<br>Pixels: %{{customdata[3]}}<extra></extra>',
+      name: name,
+      line: {{ color: color, width: 2 }},
+      marker: {{ color: color, size: 8, symbol: 'circle' }},
+      customdata: group.scenes.map(s => [group.fieldId, group.year, s.sceneDate, s.cloudCover]),
+      hovertemplate: '<b>%{{customdata[0]}}</b> (%{{customdata[1]}})<br>%{{customdata[2]}} (DOY %{{x}})<br>Mean NDVI: %{{y:.4f}}<br>Cloud: %{{customdata[3]}}%<extra></extra>',
     }});
   }});
+
+  // Annotation for fields with no satellite data
+  FIELDS.forEach(field => {{
+    if (selectedFields.has(field.fieldId) && !field.hasNdviData) {{
+      annotations.push({{
+        x: 0.5,
+        y: 0.1 + (annotations.length * 0.08),
+        xref: 'paper',
+        yref: 'paper',
+        text: `${{field.fieldName}} — No satellite imagery available`,
+        showarrow: false,
+        font: {{ color: '#94a3b8', size: 11 }},
+      }});
+    }}
+  }});
+
+  if (annotations.length > 0) {{
+    _ndviAnnotations = annotations;
+  }}
+
   return traces;
 }}
 
@@ -965,6 +1034,7 @@ function buildNdviLayout() {{
     paper_bgcolor: '#fff',
     plot_bgcolor: '#fff',
     hovermode: 'closest',
+    annotations: _ndviAnnotations || [],
   }};
   if (sharedXRange) layout.xaxis.range = sharedXRange;
   return layout;
@@ -1084,6 +1154,7 @@ function buildGddLayout() {{
 
 // Render all charts
 function renderAll() {{
+  _ndviAnnotations = [];  // Clear NDVI annotations before rebuild
   const mapTraces = buildMapTraces();
   const mapLayout = buildMapLayout();
   Plotly.newPlot('mapDiv', mapTraces, mapLayout, {{ responsive: true, displayModeBar: false }});

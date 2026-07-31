@@ -753,14 +753,16 @@ header .note {{
 }}
 .dropdown-actions button:hover {{ background: #e2e8f0; }}
 .reset-btn {{
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: #3b82f6;
+  color: #fff;
+  border: 1px solid #2563eb;
   border-radius: 6px;
   padding: 0.35rem 0.7rem;
   font-size: 0.85rem;
+  font-weight: 600;
   cursor: pointer;
 }}
-.reset-btn:hover {{ background: #e2e8f0; }}
+.reset-btn:hover {{ background: #2563eb; }}
 main {{
   flex: 1;
   display: flex;
@@ -1013,19 +1015,15 @@ function buildNdviTraces() {{
     }}
   }});
 
-  if (annotations.length > 0) {{
-    _ndviAnnotations = annotations;
-  }}
-
-  return traces;
+  return {{ traces, annotations }};
 }}
 
-function buildNdviLayout() {{
+function buildNdviLayout(annotations = []) {{
   const layout = {{
     title: {{ text: 'Mean NDVI', font: {{ size: 14 }} }},
-    margin: {{ t: 40, b: 40, l: 50, r: 50 }},
+    margin: {{ t: 40, b: 55, l: 50, r: 50 }},
     xaxis: {{
-      title: 'Day of Year',
+      title: {{ text: 'Day of Year', font: {{ size: 12 }} }},
       range: [80, 320],
       dtick: 30,
     }},
@@ -1034,7 +1032,7 @@ function buildNdviLayout() {{
     paper_bgcolor: '#fff',
     plot_bgcolor: '#fff',
     hovermode: 'closest',
-    annotations: _ndviAnnotations || [],
+    annotations: annotations,
   }};
   if (sharedXRange) layout.xaxis.range = sharedXRange;
   return layout;
@@ -1082,9 +1080,9 @@ function buildRainTraces() {{
 function buildRainLayout() {{
   const layout = {{
     title: {{ text: 'Rainfall', font: {{ size: 14 }} }},
-    margin: {{ t: 40, b: 40, l: 50, r: 50 }},
+    margin: {{ t: 40, b: 55, l: 50, r: 50 }},
     xaxis: {{
-      title: 'Day of Year',
+      title: {{ text: 'Day of Year', font: {{ size: 12 }} }},
       range: [80, 320],
       dtick: 30,
     }},
@@ -1136,9 +1134,9 @@ function buildGddTraces() {{
 function buildGddLayout() {{
   const layout = {{
     title: {{ text: 'Growing Degree Days', font: {{ size: 14 }} }},
-    margin: {{ t: 40, b: 40, l: 50, r: 50 }},
+    margin: {{ t: 40, b: 55, l: 50, r: 50 }},
     xaxis: {{
-      title: 'Day of Year',
+      title: {{ text: 'Day of Year', font: {{ size: 12 }} }},
       range: [80, 320],
       dtick: 30,
     }},
@@ -1154,7 +1152,6 @@ function buildGddLayout() {{
 
 // Render all charts
 function renderAll() {{
-  _ndviAnnotations = [];  // Clear NDVI annotations before rebuild
   const mapTraces = buildMapTraces();
   const mapLayout = buildMapLayout();
   Plotly.newPlot('mapDiv', mapTraces, mapLayout, {{ responsive: true, displayModeBar: false }});
@@ -1173,8 +1170,10 @@ function renderAll() {{
     }}
   }});
 
-  const ndviTraces = buildNdviTraces();
-  const ndviLayout = buildNdviLayout();
+  const ndviResult = buildNdviTraces();
+  const ndviTraces = ndviResult.traces;
+  const ndviAnnotations = ndviResult.annotations;
+  const ndviLayout = buildNdviLayout(ndviAnnotations);
   if (ndviTraces.length === 0) {{
     document.getElementById('ndviDiv').innerHTML = '<div class="empty-state">No NDVI data for selected fields/years</div>';
   }} else {{

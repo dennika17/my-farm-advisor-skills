@@ -213,6 +213,11 @@ def main() -> None:
         action="store_true",
         help="Also generate the Grower Field Weather Dashboard as a final pipeline step",
     )
+    parser.add_argument(
+        "--generate-crop-health-dashboard",
+        action="store_true",
+        help="Also generate the NDVI Crop Health Monitoring Dashboard as a final pipeline step",
+    )
     args = parser.parse_args()
     if args.weather_start_year > args.weather_end_year:
         print("ERROR: --weather-start-year must be <= --weather-end-year")
@@ -284,6 +289,8 @@ def main() -> None:
     ]
     if args.generate_dashboard:
         steps.append(("reporting/generate_weather_dashboard.py", "Grower Field Weather Dashboard"))
+    if args.generate_crop_health_dashboard:
+        steps.append(("reporting/generate_crop_health_dashboard.py", "NDVI Crop Health Dashboard"))
 
     all_ok = True
     extra_env = {

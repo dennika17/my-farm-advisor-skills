@@ -360,97 +360,6 @@ def _geometry_to_geojson(geometry: shapely.geometry.base.BaseGeometry) -> dict:
     return mapping(geometry)
 
 
-def _compute_soil_quadrants(
-    farm_dir: Path,
-    ndvi_records: list[dict],
-    fields_data: list[dict],
-) -> dict[str, dict]:
-    """Compute soil-NDVI quadrants for each field.
-    
-    Returns dict with:
-      - 'om': {fieldId: 'low'|'high', ...}
-      - 'aws': {fieldId: 'low'|'high', ...}
-      - 'ndvi': {fieldId: 'low'|'high', ...}
-      - 'frostDoy': int (overall last frost DOY across all years)
-    """
-    # Load soil data
-    csv_path = farm_dir / "derived" / "tables" / f"{farm_dir.name}_ssurgo_summary.csv"
-    soil: dict[str, dict] = {}
-    if csv_path.exists():
-        import csv
-        with open(csv_path, "r", newline="") as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                fid = row["field_id"]
-                soil[fid] = {
-                    "om": float(row["avg_om_pct"]),
-                    "aws": float(row["total_aws_inches"]),
-                }
-    
-    # Compute mean NDVI per field
-    field_ndvi_values: dict[str, list[float]] = {}
-    for rec in ndvi_records:
-        fid = rec["fieldId"]
-        if fid not in field_ndvi_values:
-            field_ndvi_values[fid] = []
-        field_ndvi_values[fid].append(rec["meanNdvi"])
-    
-    field_mean_ndvi: dict[str, float] = {}
-    for fid, values in field_ndvi_values.items():
-        if values:
-            field_mean_ndvi[fid] = float(np.mean(values))
-    
-    # Determine medians (only among fields with both soil and NDVI data)
-    valid_fields = [fid for fid in field_mean_ndvi if fid in soil]
-    if not valid_fields:
-        return {"om": {}, "aws": {}, "ndvi": {}, "frostDoy": 120}
-    
-    om_values = [soil[fid]["om"] for fid in valid_fields]
-    aws_values = [soil[fid]["aws"] for fid in valid_fields]
-    ndvi_values = [field_mean_ndvi[fid] for fid in valid_fields]
-    
-    om_median = float(np.median(om_values))
-    aws_median = float(np.median(aws_values))
-    ndvi_median = float(np.median(ndvi_values))
-    
-    # Classify each field
-    om_quadrant: dict[str, str] = {}
-    aws_quadrant: dict[str, str] = {}
-    ndvi_quadrant: dict[str, str] = {}
-    
-    for fid in valid_fields:
-        om_quadrant[fid] = "low" if soil[fid]["om"] < om_median else "high"
-        aws_quadrant[fid] = "low" if soil[fid]["aws"] < aws_median else "high"
-        ndvi_quadrant[fid] = "low" if field_mean_ndvi[fid] < ndvi_median else "high"
-    
-    # Compute overall last frost DOY from weather data
-    frost_doy = 120  # default
-    weather_csv = farm_dir / "derived" / "tables" / f"{farm_dir.name}_weather_2021_2025.csv"
-    if weather_csv.exists():
-        try:
-            import pandas as pd
-            wdf = pd.read_csv(weather_csv)
-            if "last_frost_doy" in wdf.columns:
-                frost_doy = int(wdf["last_frost_doy"].median())
-            elif "date" in wdf.columns:
-                wdf["date"] = pd.to_datetime(wdf["date"])
-                wdf["doy"] = wdf["date"].dt.dayofyear
-                # Approximate last frost as DOY where min temp > 0C for 3 consecutive days
-                # Simplified: use median DOY of first warm period
-        except Exception:
-            pass
-    
-    return {
-        "om": om_quadrant,
-        "aws": aws_quadrant,
-        "ndvi": ndvi_quadrant,
-        "frostDoy": frost_doy,
-        "omMedian": om_median,
-        "awsMedian": aws_median,
-        "ndviMedian": ndvi_median,
-    }
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Generate an offline self-contained NDVI-based Crop Health Monitoring Dashboard HTML file."
@@ -670,14 +579,10 @@ def main() -> None:
         _print(f"[ERROR] Failed to load Plotly bundle: {exc}", file=sys.stderr)
         sys.exit(1)
 
-    # Compute soil-NDVI quadrants
-    soil_quadrants = _compute_soil_quadrants(farm_path, ndvi_by_field_year, fields_data)
-
     # Serialize embedded data
     fields_json = json.dumps(fields_data, sort_keys=False)
     weather_json = json.dumps(weather_by_field_year, sort_keys=False)
     ndvi_json = json.dumps(ndvi_by_field_year, sort_keys=False)
-    soil_json = json.dumps(soil_quadrants, sort_keys=False)
 
     generated_at = datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
 
@@ -695,7 +600,6 @@ def main() -> None:
         fields_json=fields_json,
         weather_json=weather_json,
         ndvi_json=ndvi_json,
-        soil_json=soil_json,
         plotly_bundle=plotly_bundle,
         no_basemap_note=no_basemap_note,
     )
@@ -730,7 +634,6 @@ def _build_crop_health_html(
     fields_json: str,
     weather_json: str,
     ndvi_json: str,
-    soil_json: str,
     plotly_bundle: str,
     no_basemap_note: str,
 ) -> str:
@@ -906,42 +809,6 @@ main {{
   color: #94a3b8;
   font-size: 0.9rem;
 }}
-.soil-pane {{
-  flex: 1;
-  display: flex;
-  gap: 0.5rem;
-  padding: 0 0.5rem 0.5rem 0.5rem;
-  min-height: 350px;
-}}
-.soil-card {{
-  flex: 1;
-  min-width: 0;
-  background: #fff;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}}
-.soil-card .plotly-graph-div {{ flex: 1; }}
-.soil-legend {{
-  display: flex;
-  gap: 1rem;
-  padding: 0.4rem 0.6rem;
-  font-size: 0.8rem;
-  border-bottom: 1px solid #e2e8f0;
-}}
-.soil-legend-item {{
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-}}
-.soil-legend-dot {{
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  display: inline-block;
-}}
 @media (max-width: 900px) {{
   main {{ flex-direction: column; }}
   .map-pane {{ min-height: 300px; }}
@@ -975,10 +842,6 @@ main {{
     <div class="chart-card" id="gddDiv"></div>
   </div>
 </main>
-<section class="soil-pane">
-  <div class="soil-card" id="soilOmDiv"></div>
-  <div class="soil-card" id="soilAwsDiv"></div>
-</section>
 <script>
 // Embedded farm data
 const FARM_DATA = {{
@@ -992,7 +855,6 @@ const FARM_DATA = {{
 const FIELDS = {fields_json};
 const WEATHER_DATA = {weather_json};
 const NDVI_DATA = {ndvi_json};
-const SOIL_DATA = {soil_json};
 
 // Basemap image
 const BASEMAP_B64 = "{basemap_b64}";
@@ -1317,105 +1179,6 @@ function buildGddLayout() {{
   return layout;
 }}
 
-// Build soil-NDVI quadrant traces
-function buildSoilNdviTraces(soilFactor) {{
-  const traces = [];
-  const soilQuadrant = SOIL_DATA[soilFactor] || {{}};
-  const ndviQuadrant = SOIL_DATA.ndvi || {{}};
-  const frostDoy = SOIL_DATA.frostDoy || 120;
-  
-  // Color mapping for quadrants
-  const quadrantColors = {{
-    'low-low': '#ef4444',    // Red: Low soil + Low NDVI = URGENT
-    'low-high': '#eab308',   // Yellow: Low soil + High NDVI = RESILIENT
-    'high-low': '#3b82f6',   // Blue: High soil + Low NDVI = INVESTIGATE
-    'high-high': '#16a34a',  // Green: High soil + High NDVI = EXEMPLARY
-  }};
-  
-  const quadrantLabels = {{
-    'low-low': 'Low ' + soilFactor.toUpperCase() + ' + Low NDVI',
-    'low-high': 'Low ' + soilFactor.toUpperCase() + ' + High NDVI',
-    'high-low': 'High ' + soilFactor.toUpperCase() + ' + Low NDVI',
-    'high-high': 'High ' + soilFactor.toUpperCase() + ' + High NDVI',
-  }};
-  
-  // Group all NDVI scenes by field (all years pooled)
-  const fieldScenes = {{}};
-  NDVI_DATA.forEach(rec => {{
-    if (!fieldScenes[rec.fieldId]) fieldScenes[rec.fieldId] = [];
-    fieldScenes[rec.fieldId].push(rec);
-  }});
-  
-  // Create one trace per field
-  Object.entries(fieldScenes).forEach(([fieldId, scenes]) => {{
-    const soilQ = soilQuadrant[fieldId] || 'low';
-    const ndviQ = ndviQuadrant[fieldId] || 'low';
-    const quadrant = `${{soilQ}}-${{ndviQ}}`;
-    const color = quadrantColors[quadrant] || '#999';
-    const label = quadrantLabels[quadrant] || quadrant;
-    
-    // Sort by DOY
-    scenes.sort((a, b) => a.dayOfYear - b.dayOfYear);
-    
-    traces.push({{
-      x: scenes.map(s => s.dayOfYear),
-      y: scenes.map(s => s.meanNdvi),
-      mode: 'lines+markers',
-      type: 'scatter',
-      name: `${{getFieldName(fieldId)}} (${{label}})`,
-      line: {{ color: color, width: 2 }},
-      marker: {{ color: color, size: 6, symbol: 'circle' }},
-      customdata: scenes.map(s => [fieldId, s.sceneDate, s.cloudCover]),
-      hovertemplate: '<b>%{{customdata[0]}}</b><br>DOY %{{x}}<br>Mean NDVI: %{{y:.4f}}<br>%{{customdata[1]}}<br>Cloud: %{{customdata[2]}}%<extra></extra>',
-      legendgroup: quadrant,
-      showlegend: true,
-    }});
-  }});
-  
-  return {{ traces, frostDoy }};
-}}
-
-function buildSoilNdviLayout(title, frostDoy) {{
-  const layout = {{
-    title: {{ text: title, font: {{ size: 14 }} }},
-    margin: {{ t: 40, b: 55, l: 50, r: 50 }},
-    xaxis: {{
-      title: {{ text: 'Day of Year', font: {{ size: 12 }} }},
-      range: [80, 320],
-      dtick: 30,
-    }},
-    yaxis: {{ title: 'Mean NDVI', range: [0, 1] }},
-    legend: {{ orientation: 'h', y: 1.12, x: 1, xanchor: 'right' }},
-    paper_bgcolor: '#fff',
-    plot_bgcolor: '#fff',
-    hovermode: 'closest',
-    shapes: [
-      {{
-        type: 'line',
-        x0: frostDoy,
-        x1: frostDoy,
-        y0: 0,
-        y1: 1,
-        yref: 'paper',
-        line: {{ color: '#94a3b8', width: 1, dash: 'dot' }},
-      }},
-    ],
-    annotations: [
-      {{
-        x: frostDoy,
-        y: 1.05,
-        yref: 'paper',
-        text: 'Last Frost',
-        showarrow: false,
-        font: {{ size: 10, color: '#94a3b8' }},
-        xanchor: 'left',
-      }},
-    ],
-  }};
-  if (sharedXRange) layout.xaxis.range = sharedXRange;
-  return layout;
-}}
-
 // Render all charts
 function renderAll() {{
   const mapTraces = buildMapTraces();
@@ -1465,22 +1228,6 @@ function renderAll() {{
     attachRelayoutSync('gddDiv');
   }}
 
-  // Soil-NDVI quadrant charts
-  if (SOIL_DATA && SOIL_DATA.om && Object.keys(SOIL_DATA.om).length > 0) {{
-    const omResult = buildSoilNdviTraces('om');
-    const omLayout = buildSoilNdviLayout('Mean NDVI by Organic Matter', omResult.frostDoy);
-    Plotly.newPlot('soilOmDiv', omResult.traces, omLayout, {{ responsive: true }});
-    attachRelayoutSync('soilOmDiv');
-    
-    const awsResult = buildSoilNdviTraces('aws');
-    const awsLayout = buildSoilNdviLayout('Mean NDVI by Available Water Storage', awsResult.frostDoy);
-    Plotly.newPlot('soilAwsDiv', awsResult.traces, awsLayout, {{ responsive: true }});
-    attachRelayoutSync('soilAwsDiv');
-  }} else {{
-    document.getElementById('soilOmDiv').innerHTML = '<div class="empty-state">No soil data available</div>';
-    document.getElementById('soilAwsDiv').innerHTML = '<div class="empty-state">No soil data available</div>';
-  }}
-
   updateSummary();
 }}
 
@@ -1492,7 +1239,7 @@ function attachRelayoutSync(chartId) {{
     if (evt['xaxis.range[0]'] && evt['xaxis.range[1]']) {{
       _syncing = true;
       sharedXRange = [evt['xaxis.range[0]'], evt['xaxis.range[1]']];
-      const ids = ['ndviDiv', 'rainDiv', 'gddDiv', 'soilOmDiv', 'soilAwsDiv'];
+      const ids = ['ndviDiv', 'rainDiv', 'gddDiv'];
       ids.forEach(id => {{
         if (id !== chartId) {{
           Plotly.relayout(id, {{ 'xaxis.range': sharedXRange }});

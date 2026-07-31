@@ -73,6 +73,10 @@ def farm_dashboards_dir(grower_slug: str, farm_slug: str) -> Path:
     return farm_derived_dir(grower_slug, farm_slug) / "dashboards"
 
 
+def farm_weather_dashboard_path(grower_slug: str, farm_slug: str) -> Path:
+    return farm_dir(grower_slug, farm_slug) / f"{farm_slug}_weather_dashboard.html"
+
+
 def farm_tables_dir(grower_slug: str, farm_slug: str) -> Path:
     return farm_derived_dir(grower_slug, farm_slug) / "tables"
 

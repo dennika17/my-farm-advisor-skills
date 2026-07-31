@@ -1,0 +1,8 @@
+{
+  "grower_slug": "test-grower",
+  "farm_slug": "mock-farm",
+  "field_slug": "field-d",
+  "display_name": "Field D",
+  "field_id": "FIELD_D",
+  "notes": "Test field D"
+}

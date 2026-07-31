@@ -208,6 +208,11 @@ def main() -> None:
         action="store_true",
         help="Create and verify canonical data tree, then exit",
     )
+    parser.add_argument(
+        "--generate-dashboard",
+        action="store_true",
+        help="Also generate the Grower Field Weather Dashboard as a final pipeline step",
+    )
     args = parser.parse_args()
     if args.weather_start_year > args.weather_end_year:
         print("ERROR: --weather-start-year must be <= --weather-end-year")
@@ -277,6 +282,8 @@ def main() -> None:
         ("reporting/generate_farm_html.py", "Self-contained HTML report"),
         ("reporting/generate_farm_markdown.py", "Markdown report"),
     ]
+    if args.generate_dashboard:
+        steps.append(("reporting/generate_weather_dashboard.py", "Grower Field Weather Dashboard"))
 
     all_ok = True
     extra_env = {

@@ -1,0 +1,87 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "field_id": "field-a",
+        "area_acres": 120.5,
+        "crop_name": "corn"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-92.7, 43.05],
+            [-92.68, 43.05],
+            [-92.68, 43.06],
+            [-92.7, 43.06],
+            [-92.7, 43.05]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "field_id": "field-b",
+        "area_acres": 85.0,
+        "crop_name": "soybeans"
+      },
+      "geometry": {
+        "type": "MultiPolygon",
+        "coordinates": [
+          [
+            [
+              [-92.65, 43.03],
+              [-92.63, 43.03],
+              [-92.63, 43.04],
+              [-92.65, 43.04],
+              [-92.65, 43.03]
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "field_id": "field-c",
+        "area_acres": 45.0,
+        "crop_name": "corn"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-92.6, 43.01],
+            [-92.58, 43.01],
+            [-92.58, 43.02],
+            [-92.6, 43.02],
+            [-92.6, 43.01]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "field_id": "field-d",
+        "area_acres": 200.0,
+        "crop_name": "soybeans"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-92.55, 43.0],
+            [-92.53, 43.0],
+            [-92.53, 43.01],
+            [-92.55, 43.01],
+            [-92.55, 43.0]
+          ]
+        ]
+      }
+    }
+  ]
+}

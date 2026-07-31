@@ -1,0 +1,9 @@
+{
+  "grower_slug": "test-grower",
+  "farm_slug": "mock-farm",
+  "display_name": "Mock Test Farm",
+  "state": "IA",
+  "country": "US",
+  "default_crs": "EPSG:4326",
+  "notes": "Test fixture farm"
+}

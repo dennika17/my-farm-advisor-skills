@@ -533,6 +533,20 @@ def refresh_command(args: argparse.Namespace) -> None:
     )
 
 
+def dashboard_generate_command(args: argparse.Namespace) -> None:
+    cmd = [
+        sys.executable,
+        str(SCRIPTS_ROOT / "reporting" / "generate_weather_dashboard.py"),
+    ]
+    if args.farm_dir:
+        cmd.extend(["--farm-dir", args.farm_dir])
+    if args.output:
+        cmd.extend(["--output", args.output])
+    if args.no_basemap:
+        cmd.append("--no-basemap")
+    _run(cmd)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Create or refresh farm intelligence dashboards"
@@ -595,6 +609,31 @@ def build_parser() -> argparse.ArgumentParser:
     refresh.add_argument("--farm-slug", default=None)
     refresh.add_argument("--force", action="store_true")
     refresh.set_defaults(handler=refresh_command)
+
+    dashboard = sub.add_parser(
+        "dashboard", help="Generate or manage farm dashboards"
+    )
+    dashboard_sub = dashboard.add_subparsers(dest="dashboard_command", required=True)
+
+    dash_gen = dashboard_sub.add_parser(
+        "generate", help="Generate the Grower Field Weather Dashboard"
+    )
+    dash_gen.add_argument(
+        "--farm-dir",
+        default=None,
+        help="Direct path to a farm output directory",
+    )
+    dash_gen.add_argument(
+        "--output",
+        default=None,
+        help="Explicit output HTML path",
+    )
+    dash_gen.add_argument(
+        "--no-basemap",
+        action="store_true",
+        help="Skip satellite basemap acquisition",
+    )
+    dash_gen.set_defaults(handler=dashboard_generate_command)
 
     return parser
 

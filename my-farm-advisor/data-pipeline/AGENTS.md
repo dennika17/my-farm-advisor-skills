@@ -144,6 +144,53 @@ DATA_PIPELINE_DATA_ROOT="$tmp_root" \
   ./scripts/install.sh --non-interactive --force-refresh --no-install-deps
 ```
 
+Generate NDVI Crop Health Dashboard standalone (reads existing farm outputs only):
+
+```bash
+export DATA_PIPELINE_DATA_ROOT=/absolute/path/to/my-farm-advisor-runtime
+cd "${DATA_PIPELINE_DATA_ROOT}/data-pipeline/src"
+"${DATA_PIPELINE_DATA_ROOT}/data-pipeline/.venv/bin/python" \
+  scripts/reporting/generate_crop_health_dashboard.py \
+  --farm-dir /path/to/growers/<grower>/farms/<farm> \
+  --output /path/to/output.html
+```
+
+Generate NDVI Crop Health Dashboard via auto-discovery (single farm must be discoverable):
+
+```bash
+export DATA_PIPELINE_DATA_ROOT=/absolute/path/to/my-farm-advisor-runtime
+cd "${DATA_PIPELINE_DATA_ROOT}/data-pipeline/src"
+"${DATA_PIPELINE_DATA_ROOT}/data-pipeline/.venv/bin/python" \
+  scripts/reporting/generate_crop_health_dashboard.py \
+  --no-basemap
+```
+
+Run full farm pipeline including NDVI Crop Health Dashboard as final step:
+
+```bash
+export DATA_PIPELINE_DATA_ROOT=/absolute/path/to/my-farm-advisor-runtime
+cd "${DATA_PIPELINE_DATA_ROOT}/data-pipeline/src"
+"${DATA_PIPELINE_DATA_ROOT}/data-pipeline/.venv/bin/python" \
+  scripts/run_farm_pipeline.py \
+  --grower-slug <grower> \
+  --farm-slug <farm> \
+  --farm-name "Farm Name" \
+  --generate-crop-health-dashboard \
+  --weather-backend zarr \
+  --weather-start-year 2021 \
+  --weather-end-year 2025 \
+  --weather-time-standard lst
+```
+
+Run tests for the crop health dashboard:
+
+```bash
+export DATA_PIPELINE_DATA_ROOT=/absolute/path/to/my-farm-advisor-runtime
+cd "${DATA_PIPELINE_DATA_ROOT}/data-pipeline/src"
+"${DATA_PIPELINE_DATA_ROOT}/data-pipeline/.venv/bin/python" \
+  -m pytest scripts/tests/test_crop_health_dashboard.py -v
+```
+
 Root repository validation after documentation or structure changes:
 
 ```bash

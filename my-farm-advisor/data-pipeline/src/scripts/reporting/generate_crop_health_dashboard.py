@@ -906,7 +906,7 @@ function buildMapTraces() {{
         mode: 'lines',
         type: 'scatter',
         name: field.fieldName,
-        hovertemplate: `<b>${{field.fieldName}}</b><br>${{field.acres.toFixed(1)}} acres<extra></extra>`,
+        hovertemplate: `<b>${{field.fieldId}}</b><br>${{field.acres.toFixed(1)}} acres<extra></extra>`,
         customdata: [field.fieldId],
         showlegend: false,
       }});
@@ -1023,7 +1023,7 @@ function buildNdviTraces() {{
 function buildNdviLayout() {{
   const layout = {{
     title: {{ text: 'Mean NDVI', font: {{ size: 14 }} }},
-    margin: {{ t: 40, b: 40, l: 50, r: 20 }},
+    margin: {{ t: 40, b: 40, l: 50, r: 50 }},
     xaxis: {{
       title: 'Day of Year',
       range: [80, 320],
@@ -1136,13 +1136,13 @@ function buildGddTraces() {{
 function buildGddLayout() {{
   const layout = {{
     title: {{ text: 'Growing Degree Days', font: {{ size: 14 }} }},
-    margin: {{ t: 40, b: 40, l: 50, r: 20 }},
+    margin: {{ t: 40, b: 40, l: 50, r: 50 }},
     xaxis: {{
       title: 'Day of Year',
       range: [80, 320],
       dtick: 30,
     }},
-    yaxis: {{ title: 'Cumulative GDD (base 10°C)' }},
+    yaxis: {{ title: 'Cumulative GDD (base 50°F)' }},
     legend: {{ orientation: 'h', y: 1.12, x: 1, xanchor: 'right' }},
     paper_bgcolor: '#fff',
     plot_bgcolor: '#fff',

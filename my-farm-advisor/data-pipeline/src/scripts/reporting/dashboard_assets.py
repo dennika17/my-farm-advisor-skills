@@ -360,9 +360,11 @@ def compute_daily_gdd(t_min: float, t_max: float, base_temp: float = 10.0) -> fl
         base_temp: Base temperature (°C), default 10.0
 
     Returns:
-        Daily GDD (non-negative)
+        Daily GDD in Fahrenheit degree-days (non-negative)
     """
-    return max((t_max + t_min) / 2.0 - base_temp, 0.0)
+    gdd_c = max((t_max + t_min) / 2.0 - base_temp, 0.0)
+    # Convert Celsius GDD to Fahrenheit GDD (1 C° = 1.8 F°)
+    return gdd_c * 1.8
 
 
 def find_last_frost(

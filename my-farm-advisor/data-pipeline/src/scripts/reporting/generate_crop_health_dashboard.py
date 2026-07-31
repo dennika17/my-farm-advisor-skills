@@ -897,6 +897,14 @@ function getFieldName(fieldId) {{
   return f ? f.fieldName : fieldId;
 }}
 
+function computeCentroid(polygons) {{
+  let sumX = 0, sumY = 0, count = 0;
+  polygons.forEach(ring => {{
+    ring.forEach(p => {{ sumX += p[0]; sumY += p[1]; count++; }});
+  }});
+  return [sumX / count, sumY / count];
+}}
+
 // Build map traces
 function buildMapTraces() {{
   const traces = [];
@@ -916,11 +924,22 @@ function buildMapTraces() {{
         mode: 'lines',
         type: 'scatter',
         name: field.fieldName,
-        hovertemplate: `<b>${{field.fieldId}}</b><br>${{field.acres.toFixed(1)}} acres<extra></extra>`,
-        customdata: [field.fieldId],
+        hoverinfo: 'skip',
         showlegend: false,
-        hoveron: 'fills',
       }});
+    }});
+
+    // Invisible centroid marker for reliable hover anywhere inside the field
+    const centroid = computeCentroid(field.mercatorPolygons);
+    traces.push({{
+      x: [centroid[0]],
+      y: [centroid[1]],
+      mode: 'markers',
+      type: 'scatter',
+      marker: {{ size: 120, color: field.color, opacity: 0 }},
+      hovertemplate: `<b>${{field.fieldId}}</b><br>${{field.acres.toFixed(1)}} acres<extra></extra>`,
+      customdata: [field.fieldId],
+      showlegend: false,
     }});
   }});
   return traces;

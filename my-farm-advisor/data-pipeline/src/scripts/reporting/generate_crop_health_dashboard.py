@@ -761,6 +761,9 @@ header .note {{
   font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }}
 .reset-btn:hover {{ background: #2563eb; }}
 main {{
@@ -866,12 +869,17 @@ let sharedXRange = null;
 let _syncing = false;
 let _ndviAnnotations = [];
 
-// Determine default years
-function getDefaultYears() {{
+// All available years
+function getAllYears() {{
   const allYears = new Set();
   WEATHER_DATA.forEach(w => allYears.add(w.year));
   NDVI_DATA.forEach(n => allYears.add(n.year));
-  const years = Array.from(allYears).sort((a, b) => a - b);
+  return Array.from(allYears).sort((a, b) => a - b);
+}}
+
+// Determine default years
+function getDefaultYears() {{
+  const years = getAllYears();
   if (years.includes(2025)) return [2025];
   return years.length > 0 ? [years[years.length - 1]] : [];
 }}
@@ -911,6 +919,7 @@ function buildMapTraces() {{
         hovertemplate: `<b>${{field.fieldId}}</b><br>${{field.acres.toFixed(1)}} acres<extra></extra>`,
         customdata: [field.fieldId],
         showlegend: false,
+        hoveron: 'fills',
       }});
     }});
   }});
@@ -1241,11 +1250,13 @@ function buildFieldMenu() {{
 
   document.getElementById('selectAllFields').onclick = () => {{
     FIELDS.forEach(f => selectedFields.add(f.fieldId));
+    menu.querySelectorAll('input[data-field]').forEach(cb => {{ cb.checked = true; }});
     updateControls();
     renderAll();
   }};
   document.getElementById('clearAllFields').onclick = () => {{
     selectedFields.clear();
+    menu.querySelectorAll('input[data-field]').forEach(cb => {{ cb.checked = false; }});
     updateControls();
     renderAll();
   }};
@@ -1265,10 +1276,7 @@ function buildYearMenu() {{
   const menu = document.getElementById('yearMenu');
   menu.innerHTML = '';
 
-  const allYears = new Set();
-  WEATHER_DATA.forEach(w => allYears.add(w.year));
-  NDVI_DATA.forEach(n => allYears.add(n.year));
-  const years = Array.from(allYears).sort((a, b) => a - b);
+  const years = getAllYears();
 
   if (years.length === 0) {{
     menu.innerHTML = '<div class="dropdown-item"><span class="muted">No years available</span></div>';
@@ -1289,11 +1297,13 @@ function buildYearMenu() {{
 
   document.getElementById('selectAllYears').onclick = () => {{
     years.forEach(y => selectedYears.add(y));
+    menu.querySelectorAll('input[data-year]').forEach(cb => {{ cb.checked = true; }});
     updateControls();
     renderAll();
   }};
   document.getElementById('clearAllYears').onclick = () => {{
     selectedYears.clear();
+    menu.querySelectorAll('input[data-year]').forEach(cb => {{ cb.checked = false; }});
     updateControls();
     renderAll();
   }};
@@ -1312,8 +1322,10 @@ function buildYearMenu() {{
 function updateControls() {{
   const fCount = selectedFields.size;
   const yCount = selectedYears.size;
-  document.getElementById('fieldToggle').textContent = `Fields (${{fCount}}) ▼`;
-  document.getElementById('yearToggle').textContent = `Years (${{yCount}}) ▼`;
+  const fTotal = FIELDS.length;
+  const yTotal = getAllYears().length;
+  document.getElementById('fieldToggle').textContent = `Fields (${{fCount}}/${{fTotal}}) ▼`;
+  document.getElementById('yearToggle').textContent = `Years (${{yCount}}/${{yTotal}}) ▼`;
 }}
 
 function updateSummary() {{

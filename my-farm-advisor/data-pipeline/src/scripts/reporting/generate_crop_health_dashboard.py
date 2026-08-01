@@ -1769,7 +1769,7 @@ function buildSoilNdviLayout(title, frostDoy) {{
       linewidth: 1,
     }},
     yaxis: {{ title: 'Mean NDVI', range: [0, 1], showline: true, linecolor: '#1e293b', linewidth: 1 }},
-    legend: {{ orientation: 'h', y: 0.92, yanchor: 'top', x: 1, xanchor: 'right' }},
+    legend: {{ orientation: 'h', y: 0.96, yanchor: 'top', x: 1, xanchor: 'right' }},
     paper_bgcolor: '#fff',
     plot_bgcolor: '#fff',
     hovermode: 'closest',

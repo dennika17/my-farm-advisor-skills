@@ -1191,8 +1191,11 @@ function buildNdviLayout(annotations = []) {{
       title: {{ text: 'Day of Year', font: {{ size: 12 }} }},
       range: [80, 320],
       dtick: 30,
+      showline: true,
+      linecolor: '#1e293b',
+      linewidth: 1,
     }},
-    yaxis: {{ title: 'Mean NDVI', range: [0, 1] }},
+    yaxis: {{ title: 'Mean NDVI', range: [0, 1], showline: true, linecolor: '#1e293b', linewidth: 1 }},
     legend: {{ orientation: 'h', y: 1.12, x: 1, xanchor: 'right' }},
     paper_bgcolor: '#fff',
     plot_bgcolor: '#fff',
@@ -1250,9 +1253,12 @@ function buildRainLayout() {{
       title: {{ text: 'Day of Year', font: {{ size: 12 }} }},
       range: [80, 320],
       dtick: 30,
+      showline: true,
+      linecolor: '#1e293b',
+      linewidth: 1,
     }},
-    yaxis: {{ title: 'Daily Rainfall (in)', side: 'left' }},
-    yaxis2: {{ title: 'Cumulative Rainfall (in)', overlaying: 'y', side: 'right' }},
+    yaxis: {{ title: 'Daily Rainfall (in)', side: 'left', showline: true, linecolor: '#1e293b', linewidth: 1 }},
+    yaxis2: {{ title: 'Cumulative Rainfall (in)', overlaying: 'y', side: 'right', showline: true, linecolor: '#1e293b', linewidth: 1 }},
     legend: {{ orientation: 'h', y: 1.12, x: 1, xanchor: 'right' }},
     paper_bgcolor: '#fff',
     plot_bgcolor: '#fff',
@@ -1304,8 +1310,11 @@ function buildGddLayout() {{
       title: {{ text: 'Day of Year', font: {{ size: 12 }} }},
       range: [80, 320],
       dtick: 30,
+      showline: true,
+      linecolor: '#1e293b',
+      linewidth: 1,
     }},
-    yaxis: {{ title: 'Cumulative GDD (base 50°F)' }},
+    yaxis: {{ title: 'Cumulative GDD (base 50°F)', showline: true, linecolor: '#1e293b', linewidth: 1 }},
     legend: {{ orientation: 'h', y: 1.12, x: 1, xanchor: 'right' }},
     paper_bgcolor: '#fff',
     plot_bgcolor: '#fff',
@@ -1588,7 +1597,7 @@ main {{ flex: 1; display: flex; gap: 0.5rem; padding: 0.5rem; overflow: hidden; 
   <div>
     <div class="nav-links"><a href="{farm_id}_crop_health_dashboard.html">← Back to Crop Health Dashboard</a></div>
     <h1>Soil-NDVI Analysis Dashboard</h1>
-    <div class="subtitle">{{farm_name}}</div>
+    <div class="subtitle">{farm_name}</div>
   </div>
   <div class="controls">
     <div class="dropdown-wrap" id="fieldDropdownWrap">
@@ -1603,10 +1612,10 @@ main {{ flex: 1; display: flex; gap: 0.5rem; padding: 0.5rem; overflow: hidden; 
   </div>
 </header>
 <div class="legend-panel">
-  <div class="legend-item"><span class="legend-dot" style="background:#ef4444"></span><span class="legend-label">URGENT</span><span class="legend-desc">Low soil + Low NDVI</span></div>
-  <div class="legend-item"><span class="legend-dot" style="background:#eab308"></span><span class="legend-label">RESILIENT</span><span class="legend-desc">Low soil + High NDVI</span></div>
-  <div class="legend-item"><span class="legend-dot" style="background:#3b82f6"></span><span class="legend-label">INVESTIGATE</span><span class="legend-desc">High soil + Low NDVI</span></div>
-  <div class="legend-item"><span class="legend-dot" style="background:#16a34a"></span><span class="legend-label">EXEMPLARY</span><span class="legend-desc">High soil + High NDVI</span></div>
+  <div class="legend-item"><span class="legend-dot" style="background:#ef4444"></span><span class="legend-label">URGENT</span><span class="legend-desc">Low Soil OM / AWS + Low NDVI</span></div>
+  <div class="legend-item"><span class="legend-dot" style="background:#eab308"></span><span class="legend-label">RESILIENT</span><span class="legend-desc">Low Soil OM / AWS + High NDVI</span></div>
+  <div class="legend-item"><span class="legend-dot" style="background:#3b82f6"></span><span class="legend-label">INVESTIGATE</span><span class="legend-desc">High Soil OM / AWS + Low NDVI</span></div>
+  <div class="legend-item"><span class="legend-dot" style="background:#16a34a"></span><span class="legend-label">EXEMPLARY</span><span class="legend-desc">High Soil OM / AWS + High NDVI</span></div>
 </div>
 <main>
   <div class="chart-card" id="soilOmDiv"></div>
@@ -1755,9 +1764,12 @@ function buildSoilNdviLayout(title, frostDoy) {{
       title: {{ text: 'Day of Year', font: {{ size: 12 }} }},
       range: [80, 320],
       dtick: 30,
+      showline: true,
+      linecolor: '#1e293b',
+      linewidth: 1,
     }},
-    yaxis: {{ title: 'Mean NDVI', range: [0, 1] }},
-    legend: {{ orientation: 'h', y: -0.15, yanchor: 'top', x: 0.5, xanchor: 'center' }},
+    yaxis: {{ title: 'Mean NDVI', range: [0, 1], showline: true, linecolor: '#1e293b', linewidth: 1 }},
+    legend: {{ orientation: 'h', y: 0.92, yanchor: 'top', x: 1, xanchor: 'right' }},
     paper_bgcolor: '#fff',
     plot_bgcolor: '#fff',
     hovermode: 'closest',
@@ -1779,7 +1791,7 @@ function buildSoilNdviLayout(title, frostDoy) {{
         yref: 'paper',
         text: '<b>Last Frost</b>',
         showarrow: false,
-        font: {{ size: 11, color: '#475569' }},
+        font: {{ size: 13, color: '#1e293b' }},
         xanchor: 'left',
       }},
     ],

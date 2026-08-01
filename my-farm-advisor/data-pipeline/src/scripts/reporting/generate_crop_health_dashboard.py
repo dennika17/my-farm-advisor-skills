@@ -476,6 +476,23 @@ def main() -> None:
         ndvi_years = sorted(set(r["year"] for r in ndvi_records))
 
         field_color = _COLORBLIND_PALETTE[len(fields_data) % len(_COLORBLIND_PALETTE)]
+        
+        # Load soil data for this field
+        soil_summary_path = field_dir_path / "soil" / "ssurgo_summary.csv"
+        soil_om = None
+        soil_aws = None
+        if soil_summary_path.exists():
+            try:
+                import csv
+                with open(soil_summary_path, "r", newline="") as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        soil_om = float(row.get("avg_om_pct", 0))
+                        soil_aws = float(row.get("total_aws_inches", 0))
+                        break
+            except Exception:
+                pass
+        
         fields_data.append({
             "fieldId": field_id,
             "fieldName": display_name,
@@ -486,6 +503,8 @@ def main() -> None:
             "hasNdviData": has_ndvi,
             "availableYears": available_years,
             "ndviYears": ndvi_years,
+            "soilOm": soil_om,
+            "soilAws": soil_aws,
         })
 
         # Process weather data per year
@@ -594,6 +613,7 @@ def main() -> None:
     html = _build_crop_health_html(
         farm_id=farm_slug,
         farm_name=farm_name,
+        farm_slug=farm_slug,
         generated_at=generated_at,
         basemap_available=basemap_available,
         basemap_b64=basemap_b64,
@@ -622,12 +642,116 @@ def main() -> None:
     _print(f"  Fields: {n_fields}")
     _print(f"  Weather-bearing field-year combos: {n_weather_combos}")
     _print(f"  NDVI field-year combos: {n_ndvi_combos}")
+    
+    # Generate companion Soil-NDVI dashboard
+    soil_html = _build_soil_ndvi_html(
+        farm_id=farm_slug,
+        farm_name=farm_name,
+        fields_json=fields_json,
+        ndvi_json=ndvi_json,
+        plotly_bundle=plotly_bundle,
+    )
+    soil_output_path = farm_path / f"{farm_slug}_soil_ndvi_dashboard.html"
+    soil_temp = soil_output_path.with_suffix(".tmp")
+    soil_temp.write_text(soil_html, encoding="utf-8")
+    shutil.move(str(soil_temp), str(soil_output_path))
+    soil_size_kb = soil_output_path.stat().st_size / 1024
+    _print(f"✓ Soil-NDVI Dashboard saved → {soil_output_path}")
+    _print(f"  Size: {soil_size_kb:.0f} KB")
+    
     _print("=" * 60)
+
+
+def _compute_soil_quadrants(
+    ndvi_records: list[dict],
+    fields_data: list[dict],
+    farm_path: Path,
+) -> dict:
+    """Compute soil-NDVI quadrants for each field.
+    
+    Returns dict with:
+      - 'om': {fieldId: 'low'|'high', ...}
+      - 'aws': {fieldId: 'low'|'high', ...}
+      - 'ndvi': {fieldId: 'low'|'high', ...}
+      - 'frostDoy': int
+    """
+    # Load soil data
+    csv_path = farm_path / "derived" / "tables" / f"{farm_path.name}_ssurgo_summary.csv"
+    soil: dict[str, dict] = {}
+    if csv_path.exists():
+        import csv
+        with open(csv_path, "r", newline="") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                fid = row["field_id"]
+                soil[fid] = {
+                    "om": float(row["avg_om_pct"]),
+                    "aws": float(row["total_aws_inches"]),
+                }
+    
+    # Compute mean NDVI per field
+    field_ndvi_values: dict[str, list[float]] = {}
+    for rec in ndvi_records:
+        fid = rec["fieldId"]
+        if fid not in field_ndvi_values:
+            field_ndvi_values[fid] = []
+        field_ndvi_values[fid].append(rec["meanNdvi"])
+    
+    field_mean_ndvi: dict[str, float] = {}
+    for fid, values in field_ndvi_values.items():
+        if values:
+            field_mean_ndvi[fid] = float(np.mean(values))
+    
+    # Determine medians
+    valid_fields = [fid for fid in field_mean_ndvi if fid in soil]
+    if not valid_fields:
+        return {"om": {}, "aws": {}, "ndvi": {}, "frostDoy": 120}
+    
+    om_values = [soil[fid]["om"] for fid in valid_fields]
+    aws_values = [soil[fid]["aws"] for fid in valid_fields]
+    ndvi_values = [field_mean_ndvi[fid] for fid in valid_fields]
+    
+    om_median = float(np.median(om_values))
+    aws_median = float(np.median(aws_values))
+    ndvi_median = float(np.median(ndvi_values))
+    
+    # Classify each field
+    om_quadrant: dict[str, str] = {}
+    aws_quadrant: dict[str, str] = {}
+    ndvi_quadrant: dict[str, str] = {}
+    
+    for fid in valid_fields:
+        om_quadrant[fid] = "low" if soil[fid]["om"] < om_median else "high"
+        aws_quadrant[fid] = "low" if soil[fid]["aws"] < aws_median else "high"
+        ndvi_quadrant[fid] = "low" if field_mean_ndvi[fid] < ndvi_median else "high"
+    
+    # Compute overall last frost DOY
+    frost_doy = 120
+    weather_csv = farm_path / "derived" / "tables" / f"{farm_path.name}_weather_2021_2025.csv"
+    if weather_csv.exists():
+        try:
+            import pandas as pd
+            wdf = pd.read_csv(weather_csv)
+            if "last_frost_doy" in wdf.columns:
+                frost_doy = int(wdf["last_frost_doy"].median())
+        except Exception:
+            pass
+    
+    return {
+        "om": om_quadrant,
+        "aws": aws_quadrant,
+        "ndvi": ndvi_quadrant,
+        "frostDoy": frost_doy,
+        "omMedian": om_median,
+        "awsMedian": aws_median,
+        "ndviMedian": ndvi_median,
+    }
 
 
 def _build_crop_health_html(
     farm_id: str,
     farm_name: str,
+    farm_slug: str,
     generated_at: str,
     basemap_available: bool,
     basemap_b64: str,
@@ -677,6 +801,17 @@ header h1 {{
 header .subtitle {{
   font-size: 0.82rem;
   color: #64748b;
+}}
+header .nav-links {{
+  font-size: 0.75rem;
+  margin-top: 0.3rem;
+}}
+header .nav-links a {{
+  color: #3b82f6;
+  text-decoration: none;
+}}
+header .nav-links a:hover {{
+  text-decoration: underline;
 }}
 header .note {{
   font-size: 0.75rem;
@@ -820,6 +955,7 @@ main {{
   <div>
     <h1>NDVI-based Crop Health Monitoring Dashboard</h1>
     <div class="subtitle">{farm_name}</div>
+    <div class="nav-links"><a href="{farm_slug}_soil_ndvi_dashboard.html">View Soil-NDVI Analysis →</a></div>
   </div>
   <div class="controls">
     <div class="dropdown-wrap" id="fieldDropdownWrap">
@@ -1386,6 +1522,413 @@ function resetView() {{
 document.getElementById('resetBtn').addEventListener('click', resetView);
 
 // Initialize
+setupDropdown('fieldDropdownWrap', 'fieldToggle', 'fieldMenu');
+setupDropdown('yearDropdownWrap', 'yearToggle', 'yearMenu');
+buildFieldMenu();
+buildYearMenu();
+updateControls();
+renderAll();
+</script>
+<script>
+{plotly_bundle}
+</script>
+</body>
+</html>"""
+
+
+def _build_soil_ndvi_html(
+    farm_id: str,
+    farm_name: str,
+    fields_json: str,
+    ndvi_json: str,
+    plotly_bundle: str,
+) -> str:
+    """Build the standalone Soil-NDVI companion dashboard."""
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Soil-NDVI Analysis Dashboard — {{farm_name}}</title>
+<style>
+*, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
+body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f8fafc; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }}
+header {{ background: #fff; border-bottom: 1px solid #e2e8f0; padding: 0.6rem 1rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; }}
+header h1 {{ font-size: 1.1rem; font-weight: 600; color: #1e293b; }}
+header .subtitle {{ font-size: 0.82rem; color: #64748b; }}
+header .nav-links {{ font-size: 0.75rem; margin-top: 0.3rem; }}
+header .nav-links a {{ color: #3b82f6; text-decoration: none; }}
+header .nav-links a:hover {{ text-decoration: underline; }}
+.controls {{ display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }}
+.dropdown-wrap {{ position: relative; }}
+.dropdown-toggle {{ background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 0.35rem 0.7rem; font-size: 0.85rem; cursor: pointer; }}
+.dropdown-menu {{ display: none; position: absolute; top: 110%; left: 0; background: #fff; border: 1px solid #e2e8f0; border-radius: 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); min-width: 180px; max-height: 280px; overflow-y: auto; z-index: 100; }}
+.dropdown-menu.open {{ display: block; }}
+.dropdown-item {{ padding: 0.3rem 0.5rem; font-size: 0.8rem; display: flex; align-items: center; gap: 0.4rem; cursor: pointer; }}
+.dropdown-item:hover {{ background: #f1f5f9; }}
+.dropdown-item input[type="checkbox"] {{ cursor: pointer; }}
+.dropdown-actions {{ display: flex; gap: 0.4rem; padding: 0.3rem 0.4rem; border-top: 1px solid #e2e8f0; margin-top: 0.3rem; }}
+.dropdown-actions button {{ background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 4px; padding: 0.2rem 0.5rem; font-size: 0.75rem; cursor: pointer; }}
+.reset-btn {{ background: #3b82f6; color: #fff; border: 1px solid #2563eb; border-radius: 6px; padding: 0.35rem 0.7rem; font-size: 0.85rem; font-weight: 600; cursor: pointer; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }}
+.reset-btn:hover {{ background: #2563eb; }}
+.legend-panel {{ background: #fff; border-bottom: 1px solid #e2e8f0; padding: 0.5rem 1rem; display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap; }}
+.legend-item {{ display: flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; }}
+.legend-dot {{ width: 12px; height: 12px; border-radius: 50%; display: inline-block; }}
+.legend-label {{ font-weight: 600; }}
+.legend-desc {{ color: #64748b; font-size: 0.75rem; }}
+main {{ flex: 1; display: flex; gap: 0.5rem; padding: 0.5rem; overflow: hidden; }}
+.chart-card {{ flex: 1; min-width: 0; background: #fff; border-radius: 8px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; overflow: hidden; }}
+.chart-card .plotly-graph-div {{ flex: 1; }}
+.empty-state {{ display: flex; align-items: center; justify-content: center; height: 100%; color: #94a3b8; font-size: 0.9rem; }}
+@media (max-width: 900px) {{ main {{ flex-direction: column; }} }}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <div class="nav-links"><a href="{farm_id}_crop_health_dashboard.html">← Back to Crop Health Dashboard</a></div>
+    <h1>Soil-NDVI Analysis Dashboard</h1>
+    <div class="subtitle">{{farm_name}}</div>
+  </div>
+  <div class="controls">
+    <div class="dropdown-wrap" id="fieldDropdownWrap">
+      <button class="dropdown-toggle" id="fieldToggle">Fields ▼</button>
+      <div class="dropdown-menu" id="fieldMenu"></div>
+    </div>
+    <div class="dropdown-wrap" id="yearDropdownWrap">
+      <button class="dropdown-toggle" id="yearToggle">Years ▼</button>
+      <div class="dropdown-menu" id="yearMenu"></div>
+    </div>
+    <button class="reset-btn" id="resetBtn">Reset view</button>
+  </div>
+</header>
+<div class="legend-panel">
+  <div class="legend-item"><span class="legend-dot" style="background:#ef4444"></span><span class="legend-label">URGENT</span><span class="legend-desc">Low soil + Low NDVI</span></div>
+  <div class="legend-item"><span class="legend-dot" style="background:#eab308"></span><span class="legend-label">RESILIENT</span><span class="legend-desc">Low soil + High NDVI</span></div>
+  <div class="legend-item"><span class="legend-dot" style="background:#3b82f6"></span><span class="legend-label">INVESTIGATE</span><span class="legend-desc">High soil + Low NDVI</span></div>
+  <div class="legend-item"><span class="legend-dot" style="background:#16a34a"></span><span class="legend-label">EXEMPLARY</span><span class="legend-desc">High soil + High NDVI</span></div>
+</div>
+<main>
+  <div class="chart-card" id="soilOmDiv"></div>
+  <div class="chart-card" id="soilAwsDiv"></div>
+</main>
+<script>
+const FIELDS = {fields_json};
+const NDVI_DATA = {ndvi_json};
+
+// Compute soil quadrants from embedded NDVI + field metadata
+function computeSoilQuadrants() {{
+  const fieldSoil = {{}};
+  FIELDS.forEach(f => {{
+    if (f.soilOm !== undefined && f.soilAws !== undefined) {{
+      fieldSoil[f.fieldId] = {{ om: f.soilOm, aws: f.soilAws }};
+    }}
+  }});
+  
+  // Compute mean NDVI per field
+  const fieldNdvi = {{}};
+  NDVI_DATA.forEach(rec => {{
+    if (!fieldNdvi[rec.fieldId]) fieldNdvi[rec.fieldId] = [];
+    fieldNdvi[rec.fieldId].push(rec.meanNdvi);
+  }});
+  
+  const fieldMeanNdvi = {{}};
+  Object.entries(fieldNdvi).forEach(([fid, vals]) => {{
+    if (vals.length > 0) {{
+      fieldMeanNdvi[fid] = vals.reduce((a,b) => a+b, 0) / vals.length;
+    }}
+  }});
+  
+  // Median splits
+  const validFields = Object.keys(fieldMeanNdvi).filter(fid => fieldSoil[fid]);
+  if (validFields.length === 0) return {{ om: {{}}, aws: {{}}, ndvi: {{}}, frostDoy: 120 }};
+  
+  const omVals = validFields.map(fid => fieldSoil[fid].om).sort((a,b) => a-b);
+  const awsVals = validFields.map(fid => fieldSoil[fid].aws).sort((a,b) => a-b);
+  const ndviVals = validFields.map(fid => fieldMeanNdvi[fid]).sort((a,b) => a-b);
+  
+  const omMed = omVals[Math.floor(omVals.length / 2)];
+  const awsMed = awsVals[Math.floor(awsVals.length / 2)];
+  const ndviMed = ndviVals[Math.floor(ndviVals.length / 2)];
+  
+  const omQ = {{}}, awsQ = {{}}, ndviQ = {{}};
+  validFields.forEach(fid => {{
+    omQ[fid] = fieldSoil[fid].om < omMed ? 'low' : 'high';
+    awsQ[fid] = fieldSoil[fid].aws < awsMed ? 'low' : 'high';
+    ndviQ[fid] = fieldMeanNdvi[fid] < ndviMed ? 'low' : 'high';
+  }});
+  
+  return {{ om: omQ, aws: awsQ, ndvi: ndviQ, frostDoy: 120, omMed, awsMed, ndviMed }};
+}}
+
+const SOIL_DATA = computeSoilQuadrants();
+
+let selectedFields = new Set(FIELDS.map(f => f.fieldId));
+let selectedYears = new Set();
+let sharedXRange = null;
+let _syncing = false;
+
+function getAllYears() {{
+  const allYears = new Set();
+  NDVI_DATA.forEach(n => allYears.add(n.year));
+  return Array.from(allYears).sort((a, b) => a - b);
+}}
+
+function getDefaultYears() {{
+  const years = getAllYears();
+  if (years.includes(2025)) return [2025];
+  return years.length > 0 ? [years[years.length - 1]] : [];
+}}
+
+selectedYears = new Set(getDefaultYears());
+
+function getFieldName(fieldId) {{
+  const f = FIELDS.find(x => x.fieldId === fieldId);
+  return f ? f.fieldName : fieldId;
+}}
+
+function getFieldColor(fieldId) {{
+  const f = FIELDS.find(x => x.fieldId === fieldId);
+  return f ? f.color : '#999';
+}}
+
+function buildSoilNdviTraces(soilFactor) {{
+  const traces = [];
+  const soilQuadrant = SOIL_DATA[soilFactor] || {{}};
+  const ndviQuadrant = SOIL_DATA.ndvi || {{}};
+  const frostDoy = SOIL_DATA.frostDoy || 120;
+  
+  const quadrantColors = {{
+    'low-low': '#ef4444',
+    'low-high': '#eab308',
+    'high-low': '#3b82f6',
+    'high-high': '#16a34a',
+  }};
+  
+  const quadrantLabels = {{
+    'low-low': 'Low ' + soilFactor.toUpperCase() + ' + Low NDVI',
+    'low-high': 'Low ' + soilFactor.toUpperCase() + ' + High NDVI',
+    'high-low': 'High ' + soilFactor.toUpperCase() + ' + Low NDVI',
+    'high-high': 'High ' + soilFactor.toUpperCase() + ' + High NDVI',
+  }};
+  
+  // Group NDVI scenes by field (respecting year selection)
+  const fieldScenes = {{}};
+  NDVI_DATA.forEach(rec => {{
+    if (!selectedFields.has(rec.fieldId) || !selectedYears.has(rec.year)) return;
+    if (!fieldScenes[rec.fieldId]) fieldScenes[rec.fieldId] = [];
+    fieldScenes[rec.fieldId].push(rec);
+  }});
+  
+  Object.entries(fieldScenes).forEach(([fieldId, scenes]) => {{
+    const soilQ = soilQuadrant[fieldId] || 'low';
+    const ndviQ = ndviQuadrant[fieldId] || 'low';
+    const quadrant = soilQ + '-' + ndviQ;
+    const color = quadrantColors[quadrant] || '#999';
+    const label = quadrantLabels[quadrant] || quadrant;
+    
+    scenes.sort((a, b) => a.dayOfYear - b.dayOfYear);
+    
+    traces.push({{
+      x: scenes.map(s => s.dayOfYear),
+      y: scenes.map(s => s.meanNdvi),
+      mode: 'lines+markers',
+      type: 'scatter',
+      name: getFieldName(fieldId) + ' (' + label + ')',
+      line: {{ color: color, width: 2 }},
+      marker: {{ color: color, size: 6, symbol: 'circle' }},
+      customdata: scenes.map(s => [fieldId, s.sceneDate, s.cloudCover]),
+      hovertemplate: '<b>%{{customdata[0]}}</b><br>DOY %{{x}}<br>Mean NDVI: %{{y:.4f}}<br>%{{customdata[1]}}<br>Cloud: %{{customdata[2]}}%<extra></extra>',
+      legendgroup: quadrant,
+      showlegend: true,
+    }});
+  }});
+  
+  return {{ traces, frostDoy }};
+}}
+
+function buildSoilNdviLayout(title, frostDoy) {{
+  const layout = {{
+    title: {{ text: title, font: {{ size: 14 }} }},
+    margin: {{ t: 40, b: 55, l: 50, r: 50 }},
+    xaxis: {{
+      title: {{ text: 'Day of Year', font: {{ size: 12 }} }},
+      range: [80, 320],
+      dtick: 30,
+    }},
+    yaxis: {{ title: 'Mean NDVI', range: [0, 1] }},
+    legend: {{ orientation: 'h', y: 1.12, x: 1, xanchor: 'right' }},
+    paper_bgcolor: '#fff',
+    plot_bgcolor: '#fff',
+    hovermode: 'closest',
+    shapes: [
+      {{
+        type: 'line',
+        x0: frostDoy,
+        x1: frostDoy,
+        y0: 0,
+        y1: 1,
+        yref: 'paper',
+        line: {{ color: '#94a3b8', width: 1, dash: 'dot' }},
+      }},
+    ],
+    annotations: [
+      {{
+        x: frostDoy,
+        y: 1.05,
+        yref: 'paper',
+        text: 'Last Frost',
+        showarrow: false,
+        font: {{ size: 10, color: '#94a3b8' }},
+        xanchor: 'left',
+      }},
+    ],
+  }};
+  if (sharedXRange) layout.xaxis.range = sharedXRange;
+  return layout;
+}}
+
+function attachRelayoutSync(chartId) {{
+  const el = document.getElementById(chartId);
+  el.on('plotly_relayout', function(evt) {{
+    if (_syncing) return;
+    if (evt['xaxis.range[0]'] && evt['xaxis.range[1]']) {{
+      _syncing = true;
+      sharedXRange = [evt['xaxis.range[0]'], evt['xaxis.range[1]']];
+      const ids = ['soilOmDiv', 'soilAwsDiv'];
+      ids.forEach(id => {{
+        if (id !== chartId) {{
+          Plotly.relayout(id, {{ 'xaxis.range': sharedXRange }});
+        }}
+      }});
+      _syncing = false;
+    }}
+  }});
+}}
+
+function buildFieldMenu() {{
+  const menu = document.getElementById('fieldMenu');
+  menu.innerHTML = '';
+  const allItem = document.createElement('div');
+  allItem.className = 'dropdown-actions';
+  allItem.innerHTML = '<button id="selectAllFields">Select all</button><button id="clearAllFields">Clear all</button>';
+  menu.appendChild(allItem);
+  FIELDS.forEach(field => {{
+    const item = document.createElement('label');
+    item.className = 'dropdown-item';
+    const noData = !field.hasNdviData;
+    item.innerHTML = '<input type="checkbox" ' + (selectedFields.has(field.fieldId) ? 'checked' : '') + ' data-field="' + field.fieldId + '"> <span>' + field.fieldName + '</span>' + (noData ? ' <span class="muted">(no NDVI)</span>' : '');
+    menu.appendChild(item);
+  }});
+  document.getElementById('selectAllFields').onclick = () => {{
+    FIELDS.forEach(f => selectedFields.add(f.fieldId));
+    menu.querySelectorAll('input[data-field]').forEach(cb => {{ cb.checked = true; }});
+    updateControls(); renderAll();
+  }};
+  document.getElementById('clearAllFields').onclick = () => {{
+    selectedFields.clear();
+    menu.querySelectorAll('input[data-field]').forEach(cb => {{ cb.checked = false; }});
+    updateControls(); renderAll();
+  }};
+  menu.querySelectorAll('input[data-field]').forEach(cb => {{
+    cb.addEventListener('change', () => {{
+      const fid = cb.getAttribute('data-field');
+      if (cb.checked) selectedFields.add(fid);
+      else selectedFields.delete(fid);
+      updateControls(); renderAll();
+    }});
+  }});
+}}
+
+function buildYearMenu() {{
+  const menu = document.getElementById('yearMenu');
+  menu.innerHTML = '';
+  const years = getAllYears();
+  if (years.length === 0) {{
+    menu.innerHTML = '<div class="dropdown-item"><span class="muted">No years available</span></div>';
+    return;
+  }}
+  const allItem = document.createElement('div');
+  allItem.className = 'dropdown-actions';
+  allItem.innerHTML = '<button id="selectAllYears">Select all</button><button id="clearAllYears">Clear all</button>';
+  menu.appendChild(allItem);
+  years.forEach(year => {{
+    const item = document.createElement('label');
+    item.className = 'dropdown-item';
+    item.innerHTML = '<input type="checkbox" ' + (selectedYears.has(year) ? 'checked' : '') + ' data-year="' + year + '"> <span>' + year + '</span>';
+    menu.appendChild(item);
+  }});
+  document.getElementById('selectAllYears').onclick = () => {{
+    years.forEach(y => selectedYears.add(y));
+    menu.querySelectorAll('input[data-year]').forEach(cb => {{ cb.checked = true; }});
+    updateControls(); renderAll();
+  }};
+  document.getElementById('clearAllYears').onclick = () => {{
+    selectedYears.clear();
+    menu.querySelectorAll('input[data-year]').forEach(cb => {{ cb.checked = false; }});
+    updateControls(); renderAll();
+  }};
+  menu.querySelectorAll('input[data-year]').forEach(cb => {{
+    cb.addEventListener('change', () => {{
+      const year = parseInt(cb.getAttribute('data-year'));
+      if (cb.checked) selectedYears.add(year);
+      else selectedYears.delete(year);
+      updateControls(); renderAll();
+    }});
+  }});
+}}
+
+function updateControls() {{
+  const fCount = selectedFields.size;
+  const yCount = selectedYears.size;
+  const fTotal = FIELDS.length;
+  const yTotal = getAllYears().length;
+  document.getElementById('fieldToggle').textContent = 'Fields (' + fCount + '/' + fTotal + ') ▼';
+  document.getElementById('yearToggle').textContent = 'Years (' + yCount + '/' + yTotal + ') ▼';
+}}
+
+function setupDropdown(wrapId, toggleId, menuId) {{
+  const wrap = document.getElementById(wrapId);
+  const toggle = document.getElementById(toggleId);
+  const menu = document.getElementById(menuId);
+  toggle.addEventListener('click', (e) => {{
+    e.stopPropagation();
+    const isOpen = menu.classList.contains('open');
+    document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.remove('open'));
+    if (!isOpen) menu.classList.add('open');
+  }});
+}}
+
+document.addEventListener('click', () => {{
+  document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.remove('open'));
+}});
+
+function resetView() {{
+  selectedFields = new Set(FIELDS.map(f => f.fieldId));
+  selectedYears = new Set(getDefaultYears());
+  sharedXRange = null;
+  updateControls(); renderAll();
+}}
+
+document.getElementById('resetBtn').addEventListener('click', resetView);
+
+function renderAll() {{
+  if (SOIL_DATA && SOIL_DATA.om && Object.keys(SOIL_DATA.om).length > 0) {{
+    const omResult = buildSoilNdviTraces('om');
+    const omLayout = buildSoilNdviLayout('Mean NDVI by Organic Matter', omResult.frostDoy);
+    Plotly.newPlot('soilOmDiv', omResult.traces, omLayout, {{ responsive: true }});
+    attachRelayoutSync('soilOmDiv');
+    
+    const awsResult = buildSoilNdviTraces('aws');
+    const awsLayout = buildSoilNdviLayout('Mean NDVI by Available Water Storage', awsResult.frostDoy);
+    Plotly.newPlot('soilAwsDiv', awsResult.traces, awsLayout, {{ responsive: true }});
+    attachRelayoutSync('soilAwsDiv');
+  }} else {{
+    document.getElementById('soilOmDiv').innerHTML = '<div class="empty-state">No soil data available</div>';
+    document.getElementById('soilAwsDiv').innerHTML = '<div class="empty-state">No soil data available</div>';
+  }}
+}}
+
 setupDropdown('fieldDropdownWrap', 'fieldToggle', 'fieldMenu');
 setupDropdown('yearDropdownWrap', 'yearToggle', 'yearMenu');
 buildFieldMenu();

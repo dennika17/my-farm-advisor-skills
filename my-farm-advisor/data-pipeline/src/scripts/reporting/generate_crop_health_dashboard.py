@@ -1185,7 +1185,7 @@ function buildNdviTraces() {{
 
 function buildNdviLayout(annotations = []) {{
   const layout = {{
-    title: {{ text: 'Mean NDVI Time Series', font: {{ size: 14 }} }},
+    title: {{ text: '<b>Mean NDVI Time Series</b>', font: {{ size: 14 }} }},
     margin: {{ t: 40, b: 55, l: 50, r: 50 }},
     xaxis: {{
       title: {{ text: 'Day of Year', font: {{ size: 12 }} }},
@@ -1247,7 +1247,7 @@ function buildRainTraces() {{
 
 function buildRainLayout() {{
   const layout = {{
-    title: {{ text: 'Rainfall', font: {{ size: 14 }} }},
+    title: {{ text: '<b>Rainfall</b>', font: {{ size: 14 }} }},
     margin: {{ t: 40, b: 55, l: 50, r: 65 }},
     xaxis: {{
       title: {{ text: 'Day of Year', font: {{ size: 12 }} }},
@@ -1304,7 +1304,7 @@ function buildGddTraces() {{
 
 function buildGddLayout() {{
   const layout = {{
-    title: {{ text: 'Growing Degree Days', font: {{ size: 14 }} }},
+    title: {{ text: '<b>Growing Degree Days</b>', font: {{ size: 14 }} }},
     margin: {{ t: 40, b: 55, l: 50, r: 50 }},
     xaxis: {{
       title: {{ text: 'Day of Year', font: {{ size: 12 }} }},
@@ -1758,7 +1758,7 @@ function buildSoilNdviTraces(soilFactor) {{
 
 function buildSoilNdviLayout(title, frostDoy) {{
   const layout = {{
-    title: {{ text: title, font: {{ size: 14 }} }},
+    title: {{ text: '<b>' + title + '</b>', font: {{ size: 14 }} }},
     margin: {{ t: 40, b: 55, l: 50, r: 50 }},
     xaxis: {{
       title: {{ text: 'Day of Year', font: {{ size: 12 }} }},
@@ -1927,12 +1927,12 @@ document.getElementById('resetBtn').addEventListener('click', resetView);
 function renderAll() {{
   if (SOIL_DATA && SOIL_DATA.om && Object.keys(SOIL_DATA.om).length > 0) {{
     const omResult = buildSoilNdviTraces('om');
-    const omLayout = buildSoilNdviLayout('Mean NDVI by Organic Matter', omResult.frostDoy);
+    const omLayout = buildSoilNdviLayout('Mean NDVI by Percent Soil Organic Matter', omResult.frostDoy);
     Plotly.newPlot('soilOmDiv', omResult.traces, omLayout, {{ responsive: true }});
     attachRelayoutSync('soilOmDiv');
     
     const awsResult = buildSoilNdviTraces('aws');
-    const awsLayout = buildSoilNdviLayout('Mean NDVI by Available Water Storage', awsResult.frostDoy);
+    const awsLayout = buildSoilNdviLayout('Mean NDVI by Soil Available Water Storage (Inches)', awsResult.frostDoy);
     Plotly.newPlot('soilAwsDiv', awsResult.traces, awsLayout, {{ responsive: true }});
     attachRelayoutSync('soilAwsDiv');
   }} else {{

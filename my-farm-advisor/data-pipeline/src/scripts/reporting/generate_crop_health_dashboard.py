@@ -955,7 +955,7 @@ main {{
   <div>
     <h1>NDVI-based Crop Health Monitoring Dashboard</h1>
     <div class="subtitle">{farm_name}</div>
-    <div class="nav-links"><a href="{farm_slug}_soil_ndvi_dashboard.html">View Soil-NDVI Analysis →</a></div>
+    <div class="nav-links"><a href="./{farm_slug}_soil_ndvi_dashboard.html" target="_blank">View Soil-NDVI Analysis →</a></div>
   </div>
   <div class="controls">
     <div class="dropdown-wrap" id="fieldDropdownWrap">
@@ -1595,7 +1595,7 @@ main {{ flex: 1; display: flex; gap: 0.5rem; padding: 0.5rem; overflow: hidden; 
 <body>
 <header>
   <div>
-    <div class="nav-links"><a href="{farm_id}_crop_health_dashboard.html">← Back to Crop Health Dashboard</a></div>
+    <div class="nav-links"><a href="./{farm_id}_crop_health_dashboard.html" target="_blank">← Back to Crop Health Dashboard</a></div>
     <h1>Soil-NDVI Analysis Dashboard</h1>
     <div class="subtitle">{farm_name}</div>
   </div>

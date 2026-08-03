@@ -819,8 +819,7 @@ header .note {{
   border-left: 3px solid #22c55e;
   max-width: 70%;
   line-height: 1.3;
-  flex: 1;
-  min-width: 0;
+  flex-grow: 1;
 }}
 .dropdown-wrap {{
   position: relative;

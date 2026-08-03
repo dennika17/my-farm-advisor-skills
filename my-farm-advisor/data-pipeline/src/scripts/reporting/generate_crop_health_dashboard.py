@@ -962,7 +962,7 @@ main {{
       <div class="dropdown-menu" id="yearMenu"></div>
     </div>
     <button class="reset-btn" id="resetBtn">Reset View</button>
-    <div class="insight-box" id="insightBox">Corn peaks NDVI readings by mid-August and soybeans by late-August - track early season green-up and input management prior to these target dates for excellent crop performance. One field (osm-2000000006) had zero NDVI satellite scenes, might be invisible to remote sensing and needs alternative monitoring.</div>
+    <div class="insight-box" id="insightBox">Corn peaks NDVI readings by mid-August and soybeans by late-August - track early season green-up and input management prior to these target dates for excellent crop performance. One field (osm-2000000006) had zero NDVI satellite scenes, might be invisible to remote sensing and needs alternative monitoring. Fields further west show higher organic matter and NDVI readings - prioritize soil-building practices on eastern farm acres.</div>
   </div>
   <div class="note" id="summaryNote"></div>
 </header>

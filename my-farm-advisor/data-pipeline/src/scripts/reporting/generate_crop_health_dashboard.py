@@ -655,10 +655,6 @@ def main() -> None:
     soil_temp = soil_output_path.with_suffix(".tmp")
     soil_temp.write_text(soil_html, encoding="utf-8")
     shutil.move(str(soil_temp), str(soil_output_path))
-    soil_size_kb = soil_output_path.stat().st_size / 1024
-    _print(f"✓ Soil-NDVI Dashboard saved → {soil_output_path}")
-    _print(f"  Size: {soil_size_kb:.0f} KB")
-    
     _print("=" * 60)
 
 
@@ -802,17 +798,6 @@ header .subtitle {{
   font-size: 0.82rem;
   color: #64748b;
 }}
-header .nav-links {{
-  font-size: 0.75rem;
-  margin-top: 0.3rem;
-}}
-header .nav-links a {{
-  color: #3b82f6;
-  text-decoration: none;
-}}
-header .nav-links a:hover {{
-  text-decoration: underline;
-}}
 header .note {{
   font-size: 0.75rem;
   color: #94a3b8;
@@ -823,6 +808,17 @@ header .note {{
   align-items: center;
   gap: 0.75rem;
   flex-wrap: wrap;
+}}
+.insight-box {{
+  background: #f0fdf4;
+  color: #166534;
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 0.3rem 0.6rem;
+  border-radius: 4px;
+  border-left: 3px solid #22c55e;
+  max-width: 500px;
+  line-height: 1.3;
 }}
 .dropdown-wrap {{
   position: relative;
@@ -955,7 +951,6 @@ main {{
   <div>
     <h1>NDVI-based Crop Health Monitoring Dashboard</h1>
     <div class="subtitle">{farm_name}</div>
-    <div class="nav-links"><a href="./{farm_slug}_soil_ndvi_dashboard.html">View Soil-NDVI Analysis →</a></div>
   </div>
   <div class="controls">
     <div class="dropdown-wrap" id="fieldDropdownWrap">
@@ -966,7 +961,8 @@ main {{
       <button class="dropdown-toggle" id="yearToggle">Years ▼</button>
       <div class="dropdown-menu" id="yearMenu"></div>
     </div>
-    <button class="reset-btn" id="resetBtn">Reset view</button>
+    <button class="reset-btn" id="resetBtn">Reset View</button>
+    <div class="insight-box" id="insightBox">Corn peaks NDVI readings by mid-August and soybeans by late-August - track early season green-up and input management prior to these target dates for excellent crop performance. One field (osm-2000000006) had zero NDVI satellite scenes, might be invisible to remote sensing and needs alternative monitoring.</div>
   </div>
   <div class="note" id="summaryNote"></div>
 </header>
@@ -1565,10 +1561,18 @@ body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helv
 header {{ background: #fff; border-bottom: 1px solid #e2e8f0; padding: 0.6rem 1rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; }}
 header h1 {{ font-size: 1.1rem; font-weight: 600; color: #1e293b; }}
 header .subtitle {{ font-size: 0.82rem; color: #64748b; }}
-header .nav-links {{ font-size: 0.75rem; margin-top: 0.3rem; }}
-header .nav-links a {{ color: #3b82f6; text-decoration: none; }}
-header .nav-links a:hover {{ text-decoration: underline; }}
 .controls {{ display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }}
+.insight-box {{
+  background: #eff6ff;
+  color: #1e40af;
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 0.3rem 0.6rem;
+  border-radius: 4px;
+  border-left: 3px solid #3b82f6;
+  max-width: 500px;
+  line-height: 1.3;
+}}
 .dropdown-wrap {{ position: relative; }}
 .dropdown-toggle {{ background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 0.35rem 0.7rem; font-size: 0.85rem; cursor: pointer; }}
 .dropdown-menu {{ display: none; position: absolute; top: 110%; left: 0; background: #fff; border: 1px solid #e2e8f0; border-radius: 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); min-width: 180px; max-height: 280px; overflow-y: auto; z-index: 100; }}
@@ -1595,7 +1599,6 @@ main {{ flex: 1; display: flex; gap: 0.5rem; padding: 0.5rem; overflow: hidden; 
 <body>
 <header>
   <div>
-    <div class="nav-links"><a href="./{farm_id}_crop_health_dashboard.html">← Back to Crop Health Dashboard</a></div>
     <h1>Soil-NDVI Analysis Dashboard</h1>
     <div class="subtitle">{farm_name}</div>
   </div>
@@ -1608,7 +1611,8 @@ main {{ flex: 1; display: flex; gap: 0.5rem; padding: 0.5rem; overflow: hidden; 
       <button class="dropdown-toggle" id="yearToggle">Years ▼</button>
       <div class="dropdown-menu" id="yearMenu"></div>
     </div>
-    <button class="reset-btn" id="resetBtn">Reset view</button>
+    <button class="reset-btn" id="resetBtn">Reset View</button>
+    <div class="insight-box" id="insightBox">One field (osm-2000000002) had 11.4% soil OM and hit top-quartile NDVI readings - the practices on this field should be replicated in other fields across the grower's farm to improve soil attributes especially where the soil OM was 3% or lower.</div>
   </div>
 </header>
 <div class="legend-panel">

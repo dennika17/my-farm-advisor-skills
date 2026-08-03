@@ -817,8 +817,10 @@ header .note {{
   padding: 0.3rem 0.6rem;
   border-radius: 4px;
   border-left: 3px solid #22c55e;
-  max-width: 500px;
+  max-width: 70%;
   line-height: 1.3;
+  flex: 1;
+  min-width: 0;
 }}
 .dropdown-wrap {{
   position: relative;
@@ -1558,7 +1560,7 @@ def _build_soil_ndvi_html(
 <style>
 *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
 body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f8fafc; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }}
-header {{ background: #fff; border-bottom: 1px solid #e2e8f0; padding: 0.6rem 1rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; }}
+header {{ flex-shrink: 0; background: #fff; border-bottom: 1px solid #e2e8f0; padding: 0.6rem 1rem; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }}
 header h1 {{ font-size: 1.1rem; font-weight: 600; color: #1e293b; }}
 header .subtitle {{ font-size: 0.82rem; color: #64748b; }}
 .controls {{ display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }}
@@ -1570,8 +1572,10 @@ header .subtitle {{ font-size: 0.82rem; color: #64748b; }}
   padding: 0.3rem 0.6rem;
   border-radius: 4px;
   border-left: 3px solid #3b82f6;
-  max-width: 500px;
+  max-width: 70%;
   line-height: 1.3;
+  flex: 1;
+  min-width: 0;
 }}
 .dropdown-wrap {{ position: relative; }}
 .dropdown-toggle {{ background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 0.35rem 0.7rem; font-size: 0.85rem; cursor: pointer; }}
